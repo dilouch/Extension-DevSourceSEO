@@ -1,6 +1,6 @@
 (() => {
 	const STORAGE_KEY = 'redirectHistory';
-	const MAX_ENTRIES = 20;
+	const MAX_ENTRIES = 10;
 
 	async function get() {
 		return new Promise((resolve) => {

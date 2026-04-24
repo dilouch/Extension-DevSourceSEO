@@ -181,8 +181,15 @@
 				</tbody></table>
 				<script>window.onload=()=>setTimeout(()=>window.print(),300);<\/script>
 				</body></html>`;
-			const win = window.open('', '_blank');
-			if (win) { win.document.write(html); win.document.close(); }
+			const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+			const url = URL.createObjectURL(blob);
+			if (typeof chrome !== 'undefined' && chrome.tabs?.create) {
+				chrome.tabs.create({ url });
+			} else {
+				const win = window.open(url, '_blank');
+				if (!win) alert('Ouverture bloquée par le navigateur.');
+			}
+			setTimeout(() => URL.revokeObjectURL(url), 60000);
 		});
 	}
 

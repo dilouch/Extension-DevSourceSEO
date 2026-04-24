@@ -1,6 +1,7 @@
 (() => {
 	const STORAGE_KEY_API = 'seobserverApiKeyV2';
 	const STORAGE_KEY_CACHE_PREFIX = 'linking_cache_';
+	const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
 	let initialized = false;
 	let bulkData = [];
@@ -47,10 +48,12 @@
 
 		if (!domain) {
 			status('Linking: domaine introuvable sur cet onglet.');
+			globalThis.LinkingRendererV2?.renderError(refs.singleResult, 'Domaine introuvable sur cet onglet.');
 			return;
 		}
 		if (!key) {
 			status('Linking: clé API manquante.');
+			globalThis.LinkingRendererV2?.renderError(refs.singleResult, 'Clé API SEObserver manquante.');
 			return;
 		}
 
@@ -59,14 +62,16 @@
 		const cacheKey = getCacheKey(domain);
 		if (!force) {
 			const cached = await new Promise((resolve) => chrome.storage.local.get([cacheKey], resolve));
-			if (cached?.[cacheKey]?.item) {
-				globalThis.LinkingRendererV2?.renderSingle(refs.singleResult, cached[cacheKey].item, cached[cacheKey].checkedAt);
-				status('Linking: résultat chargé depuis le cache.');
+			const entry = cached?.[cacheKey];
+			if (entry?.item && entry.checkedAt && (Date.now() - entry.checkedAt) < CACHE_TTL_MS) {
+				globalThis.LinkingRendererV2?.renderSingle(refs.singleResult, entry.item, entry.checkedAt);
+				status('Linking: résultat chargé depuis le cache (< 24h).');
 				return;
 			}
 		}
 
 		try {
+			globalThis.LinkingRendererV2?.renderLoading(refs.singleResult, `Analyse de ${domain}...`);
 			status('Linking: récupération API en cours...');
 			const data = await globalThis.LinkingApiV2.fetchMetrics([domain], key);
 			const item = data[0] || null;
@@ -80,6 +85,7 @@
 			status('Linking: analyse domaine terminée.');
 		} catch (error) {
 			status(`Linking API: ${error.message}`);
+			globalThis.LinkingRendererV2?.renderError(refs.singleResult, `Erreur API: ${error.message}`);
 		}
 	}
 
@@ -87,12 +93,14 @@
 		const key = getApiKey();
 		if (!key) {
 			status('Linking: clé API manquante.');
+			globalThis.LinkingRendererV2?.renderError(refs.bulkResult, 'Clé API SEObserver manquante.');
 			return;
 		}
 
 		const raw = String(refs.bulkInput?.value || '').trim();
 		if (!raw) {
 			status('Linking: ajoute des domaines/URLs pour le bulk.');
+			globalThis.LinkingRendererV2?.renderPlaceholder(refs.bulkResult, 'Saisis un ou plusieurs domaines (un par ligne) puis lance le bulk.');
 			return;
 		}
 
@@ -103,16 +111,19 @@
 
 		if (!domains.length) {
 			status('Linking: aucun domaine valide détecté.');
+			globalThis.LinkingRendererV2?.renderError(refs.bulkResult, 'Aucun domaine valide détecté.');
 			return;
 		}
 
 		try {
 			status(`Linking: bulk en cours (${domains.length} domaines)...`);
+			globalThis.LinkingRendererV2?.renderLoading(refs.bulkResult, `Bulk en cours sur ${domains.length} domaines...`);
 			bulkData = await globalThis.LinkingApiV2.fetchMetrics(domains, key);
 			globalThis.LinkingRendererV2?.renderBulk(refs.bulkResult, bulkData);
-			status('Linking: bulk terminé.');
+			status(`Linking: bulk terminé (${bulkData.length}/${domains.length} résultats).`);
 		} catch (error) {
 			status(`Linking bulk: ${error.message}`);
+			globalThis.LinkingRendererV2?.renderError(refs.bulkResult, `Erreur API bulk: ${error.message}`);
 		}
 	}
 
@@ -150,6 +161,8 @@
 		bindDom();
 		attachEvents();
 		loadSavedApiKey();
+		globalThis.LinkingRendererV2.renderPlaceholder(refs.singleResult, 'Renseigne ta clé API puis clique sur « Analyser domaine ».');
+		globalThis.LinkingRendererV2.renderPlaceholder(refs.bulkResult, 'Saisis des domaines (un par ligne) et lance le bulk.');
 		initialized = true;
 	}
 

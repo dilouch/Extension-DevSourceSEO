@@ -624,6 +624,68 @@
             return;
         }
 
+        if (message?.type === 'PREPARE_FULLPAGE_CAPTURE') {
+            try {
+                // 1) Désactiver smooth-scroll
+                if (!document.getElementById('__ds_fullpage_style__')) {
+                    const styleEl = document.createElement('style');
+                    styleEl.id = '__ds_fullpage_style__';
+                    styleEl.textContent = `
+                        html, body { scroll-behavior: auto !important; }
+                        html.__ds-capturing__ * {
+                            animation: none !important;
+                            transition: none !important;
+                        }
+                        html.__ds-capturing__ [data-ds-fixed-hidden] { visibility: hidden !important; }
+                    `;
+                    document.head.appendChild(styleEl);
+                }
+                document.documentElement.classList.add('__ds-capturing__');
+
+                // 2) Masquer éléments fixed/sticky (header, cookie banner, etc)
+                const hidden = [];
+                document.querySelectorAll('body *').forEach((el) => {
+                    const cs = getComputedStyle(el);
+                    if (cs.position === 'fixed' || cs.position === 'sticky') {
+                        el.setAttribute('data-ds-fixed-hidden', '1');
+                        hidden.push(el);
+                    }
+                });
+                window.__dsCapturedHidden = hidden;
+
+                // 3) Forcer chargement des images lazy
+                document.querySelectorAll('img[loading="lazy"]').forEach((img) => {
+                    img.removeAttribute('loading');
+                });
+
+                // 4) Sauvegarder overflow original et bloquer (évite scrollbar qui change la largeur)
+                window.__dsOriginalOverflow = document.documentElement.style.overflow;
+                // On laisse l'overflow tel quel pour pouvoir scroller. Le DPR gère le reste.
+
+                sendResponse({ success: true, hiddenCount: hidden.length });
+            } catch (err) {
+                sendResponse({ success: false, error: err?.message });
+            }
+            return true;
+        }
+
+        if (message?.type === 'RESTORE_FULLPAGE_CAPTURE') {
+            try {
+                document.documentElement.classList.remove('__ds-capturing__');
+                const hidden = window.__dsCapturedHidden || [];
+                hidden.forEach((el) => el.removeAttribute && el.removeAttribute('data-ds-fixed-hidden'));
+                window.__dsCapturedHidden = null;
+                if (typeof window.__dsOriginalOverflow === 'string') {
+                    document.documentElement.style.overflow = window.__dsOriginalOverflow;
+                    window.__dsOriginalOverflow = undefined;
+                }
+                sendResponse({ success: true });
+            } catch (err) {
+                sendResponse({ success: false, error: err?.message });
+            }
+            return true;
+        }
+
         if (message?.type === 'START_COLOR_PICKER') {
             startColorPicker(sendResponse);
             return true;

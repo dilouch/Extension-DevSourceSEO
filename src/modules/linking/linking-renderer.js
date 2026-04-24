@@ -3,10 +3,25 @@
 		? globalThis.DomV2.escapeHtml(value)
 		: String(value ?? '');
 
+	function renderPlaceholder(container, message) {
+		if (!container) return;
+		container.innerHTML = `<p class="linking-empty" style="padding:14px;color:#6c7d85;font-size:12px;text-align:center;">${esc(message)}</p>`;
+	}
+
+	function renderError(container, message) {
+		if (!container) return;
+		container.innerHTML = `<div class="linking-error" style="padding:12px;border:1px solid #e74c3c;background:#fdecea;color:#c0392b;border-radius:6px;font-size:12px;">⚠️ ${esc(message)}</div>`;
+	}
+
+	function renderLoading(container, message) {
+		if (!container) return;
+		container.innerHTML = `<div class="linking-loading" style="padding:14px;text-align:center;color:#6c7d85;font-size:12px;">⏳ ${esc(message || 'Chargement...')}</div>`;
+	}
+
 	function renderSingle(container, item, checkedAt) {
 		if (!container) return;
 		if (!item) {
-			container.innerHTML = '<p class="linking-empty">Aucune donnée Linking.</p>';
+			renderPlaceholder(container, 'Aucune donnée Linking pour ce domaine.');
 			return;
 		}
 
@@ -74,6 +89,9 @@
 	globalThis.LinkingRendererV2 = Object.freeze({
 		renderSingle,
 		renderBulk,
-		exportBulkCsv
+		exportBulkCsv,
+		renderPlaceholder,
+		renderError,
+		renderLoading
 	});
 })();

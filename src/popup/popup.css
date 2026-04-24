@@ -1615,3 +1615,11 @@ body.theme-dark .save-item-clickable:hover { background: #1e2b36; }
     font-size:12px;
     word-break:break-all;
 }
+
+/* ── Settings tab ─────────────────────────────────────────────────────────── */
+.settings-tab-toggle { transition: background .12s, border-color .12s; }
+.settings-tab-toggle:hover { background: #f0f4f5; border-color: #b0bec5 !important; }
+.settings-tab-toggle:has(input:not(:checked)) { opacity: .55; }
+body.theme-dark .settings-tab-toggle { background: #1e2d35; border-color: #3a4f5c !important; color: #c8d4dc; }
+body.theme-dark .settings-tab-toggle:hover { background: #253840; }
+body.theme-dark .settings-tab-toggle:has(input:not(:checked)) { opacity: .45; }

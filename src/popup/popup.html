@@ -54,7 +54,9 @@
                 <button class="menu-tab tab-link" data-tab="tab-colors">Couleurs</button>
                 <button class="menu-tab tab-link" data-tab="tab-favicon">Favicon</button>
                 <button class="menu-tab tab-link" data-tab="tab-bulk">Bulk</button>
+                <button class="menu-tab tab-link" data-tab="tab-capture">Capture</button>
                 <button class="menu-tab tab-link" data-tab="tab-advanced">Avancé</button>
+                <button class="menu-tab tab-link" data-tab="tab-settings">Param.</button>
             </div>
         </nav>
 
@@ -273,6 +275,36 @@
                     <div id="favicon-results"></div>
                 </div>
             </section>
+
+            <section id="tab-capture" class="tab-panel">
+                <div class="card">
+                    <div class="card-head">
+                        <h2>📸 Capture pleine page</h2>
+                        <div class="btn-row">
+                            <button id="btn-capture-png" class="btn btn-primary" type="button">📷 Capturer en PNG</button>
+                            <button id="btn-capture-pdf" class="btn btn-secondary" type="button">📄 Capturer en PDF</button>
+                        </div>
+                    </div>
+                    <p class="hint" style="margin:8px 0 14px;">Capture l'intégralité de la page courante (scroll automatique). Les éléments fixes (header, cookie banner) sont temporairement masqués pour éviter les doublons.</p>
+                    <div id="capture-preview-wrap" class="hidden" style="margin-top:12px; border:1px solid #d1d8dc; border-radius:8px; overflow:hidden; max-height:400px; overflow-y:auto; background:#f5f7f8;">
+                        <img id="capture-preview" alt="Aperçu capture" style="display:block; width:100%; height:auto;">
+                    </div>
+                </div>
+            </section>
+
+            <section id="tab-settings" class="tab-panel">
+                <div class="card">
+                    <div class="card-head">
+                        <h2>Paramètres</h2>
+                        <div class="btn-row">
+                            <button id="btn-settings-show-all" class="btn btn-secondary" type="button">Tout afficher</button>
+                            <button id="btn-settings-hide-all" class="btn btn-secondary" type="button">Tout masquer</button>
+                        </div>
+                    </div>
+                    <p class="hint" style="margin:8px 0 14px;">Coche les onglets à afficher dans le menu. L'onglet « Paramètres » reste toujours accessible.</p>
+                    <div id="settings-tabs-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;"></div>
+                </div>
+            </section>
         </main>
     </div>
     <footer>
@@ -308,6 +340,11 @@
     <script src="../modules/linking/linking-renderer.js"></script>
     <script src="../modules/linking/linking-controller.js"></script>
     <script src="../modules/seo/advanced.js"></script>
+    <script src="popup-overview.js"></script>
+    <script src="popup-colors.js"></script>
+    <script src="popup-capture.js"></script>
+    <script src="popup-saves.js"></script>
+    <script src="popup-technical.js"></script>
     <script src="popup.js"></script>
 </body>
 </html>

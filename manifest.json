@@ -1,0 +1,78 @@
+{
+    "manifest_version": 3,
+    "name": "Devsource SEO Analyzer Ultimate",
+    "version": "5.0.0",
+    "description": "V2 - Base propre pour reconstruire l'extension SEO.",
+    "browser_specific_settings": {
+        "gecko": {
+            "id": "devsource-seo-analyzer@local",
+            "data_collection_permissions": {
+                "required": [
+                    "none"
+                ]
+            }
+        }
+    },
+    "permissions": [
+        "activeTab",
+        "clipboardWrite",
+        "downloads",
+        "scripting",
+        "storage",
+        "tabs",
+        "contextMenus",
+        "webRequest",
+        "webNavigation"
+    ],
+    "host_permissions": [
+        "<all_urls>"
+    ],
+    "action": {
+        "default_popup": "src/popup/popup.html",
+        "default_icon": {
+            "16": "assets/icons/logo-popup.png",
+            "32": "assets/icons/logo-popup.png",
+            "48": "assets/icons/logo-popup.png",
+            "128": "assets/icons/logo-popup.png"
+        }
+    },
+    "icons": {
+        "16": "assets/icons/logo-popup.png",
+        "32": "assets/icons/logo-popup.png",
+        "48": "assets/icons/logo-popup.png",
+        "128": "assets/icons/logo-popup.png"
+    },
+    "background": {
+        "scripts": [
+            "src/background/service-worker.js"
+        ],
+        "service_worker": "src/background/service-worker.js"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "<all_urls>"
+            ],
+            "js": [
+                "src/content/collector.js",
+                "src/content/highlight-nofollow.js"
+            ],
+            "run_at": "document_idle"
+        },
+        {
+            "matches": [
+                "*://www.google.com/search*",
+                "*://www.google.fr/search*",
+                "*://www.google.be/search*",
+                "*://www.google.ca/search*",
+                "*://www.google.ch/search*",
+                "*://www.google.com/maps*",
+                "*://www.google.fr/maps*"
+            ],
+            "js": [
+                "src/content/serp.js"
+            ],
+            "run_at": "document_idle"
+        }
+    ]
+}

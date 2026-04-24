@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="jQuery logo">
+  <rect width="64" height="64" rx="10" fill="#0769ad"/>
+  <path d="M18 40c6 6 18 8 28 1" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <path d="M22 32c5 4 13 5 20 1" stroke="#bfe2f7" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M26 25c3 2 7 3 11 1" stroke="#dceffd" stroke-width="2" fill="none" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Devsource SEO Analyzer</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="shell">
+        <header class="topbar">
+            <div>
+                <div class="eyebrow">Devsource SEO Analyzer</div>
+            </div>
+            <div class="status-stack">
+                <label class="theme-toggle" for="theme-toggle-input">
+                    <input id="theme-toggle-input" type="checkbox">
+                    <span class="theme-toggle-track">
+                        <span class="theme-toggle-thumb"></span>
+                    </span>
+                    <span id="theme-toggle-label" class="theme-toggle-label">Mode clair</span>
+                </label>
+                <button id="btn-nofollow-topbar" class="nofollow-topbar-btn" style="display:none;" type="button">⚡ Nofollow Désactiver</button>
+                <div id="status" class="status-pill">Pret</div>
+                <div id="active-url" class="active-url">Aucune page</div>
+            </div>
+        </header>
+
+        <nav class="header-nav" id="menu-tabs">
+            <div class="header-row">
+                <button class="menu-tab tab-link active" data-tab="tab-overview">Aperçu</button>
+                <button class="menu-tab tab-link" data-tab="tab-audit">Audit</button>
+                <button class="menu-tab tab-link" data-tab="tab-psi">Speed</button>
+                <button class="menu-tab tab-link" data-tab="tab-opportunities">Opp.</button>
+                <button class="menu-tab tab-link menu-brand" data-tab="tab-brand">Charte Devsource</button>
+            </div>
+            <div class="header-row">
+                <button class="menu-tab tab-link" data-tab="tab-words">Mots</button>
+                <button class="menu-tab tab-link" data-tab="tab-images">Images</button>
+                <button class="menu-tab tab-link" data-tab="tab-links">Liens</button>
+                <button class="menu-tab tab-link" data-tab="tab-headings">Titres</button>
+                <button class="menu-tab tab-link" data-tab="tab-save">Sauveg.</button>
+            </div>
+            <div class="header-row">
+                <button class="menu-tab tab-link" data-tab="tab-meta">Meta</button>
+                <button class="menu-tab tab-link" data-tab="tab-technical">Tech</button>
+                <button class="menu-tab tab-link" data-tab="tab-technologies">Stack</button>
+                <button class="menu-tab tab-link" data-tab="tab-structured-data">Schema</button>
+                <button class="menu-tab tab-link" data-tab="tab-responsive">Resp.</button>
+                <button class="menu-tab tab-link" data-tab="tab-linking">Link</button>
+                <button class="menu-tab tab-link" data-tab="tab-network">Redir</button>
+            </div>
+            <div class="header-row">
+                <button class="menu-tab tab-link" data-tab="tab-colors">Couleurs</button>
+                <button class="menu-tab tab-link" data-tab="tab-favicon">Favicon</button>
+                <button class="menu-tab tab-link" data-tab="tab-bulk">Bulk</button>
+                <button class="menu-tab tab-link" data-tab="tab-advanced">Avancé</button>
+            </div>
+        </nav>
+
+        <main>
+            <section id="tab-overview" class="tab-panel active">
+                <div class="card">
+                    <div class="card-head">
+                        <h2>Vue d'ensemble</h2>
+                        <div class="btn-row">
+                            <button id="btn-save-analysis" class="btn btn-primary">Sauvegarder</button>
+                            <button id="btn-refresh" class="btn">Rafraichir</button>
+                        </div>
+                    </div>
+                    <div id="overview-results"></div>
+                </div>
+            </section>
+
+            <section id="tab-audit" class="tab-panel">
+                <div class="card">
+                    <div class="card-head"><h2>Audit SEO</h2></div>
+                    <div id="audit-results"></div>
+                </div>
+            </section>
+
+            <section id="tab-psi" class="tab-panel">
+                <div class="card">
+                    <div class="card-head">
+                        <h2>Performance Web</h2>
+                    </div>
+                    <div id="speed-results"></div>
+                </div>
+            </section>
+
+            <section id="tab-opportunities" class="tab-panel">
+                <div class="card">
+                    <div class="card-head">
+                        <h2>Opportunités SEO</h2>
+                    </div>
+                    <div id="opportunities-list"></div>
+                </div>
+            </section>
+
+            <section id="tab-words" class="tab-panel">
+                <div class="card">
+                    <div class="card-head"><h2>Mots-clés</h2></div>
+                    <div id="words-results"></div>
+                </div>
+            </section>
+
+            <section id="tab-meta" class="tab-panel">
+                <div class="card">
+                    <div class="card-head"><h2>Meta & Social</h2></div>
+                    <div id="metadata-results"></div>
+                </div>
+            </section>
+
+            <section id="tab-headings" class="tab-panel">
+                <div class="card">
+                    <div class="card-head"><h2>Structure des titres</h2></div>
+                    <div id="headings-results"></div>
+                </div>
+            </section>
+
+            <section id="tab-links" class="tab-panel">
+                <div class="card">
+                    <div class="card-head"><h2>Liens internes / externes</h2></div>
+                    <div id="links-results"></div>
+                </div>
+            </section>
+
+            <section id="tab-images" class="tab-panel">
+                <div class="card">
+                    <div class="card-head"><h2>Images</h2></div>
+                    <div id="images-results"></div>
+                </div>
+            </section>
+
+            <section id="tab-colors" class="tab-panel">
+                <div class="card">
+                    <div class="card-head"><h2>Couleurs</h2></div>
+                    <div id="colors-results">
+                        <div class="color-tools-container">
+                            <div class="color-tools-head">
+                                <div class="color-tools-actions">
+                                    <label class="color-picker-label" for="color-picker-input">Couleur active</label>
+                                    <input id="color-picker-input" type="color" value="#12272b">
+                                    <button id="btn-eyedropper" class="btn btn-primary" type="button">Pipette</button>
+                                    <button id="btn-copy-picker-color" class="btn btn-secondary" type="button" title="Copier la couleur active">📋 Copier</button>
+                                </div>
+                                <p class="panel-note">Choisis une couleur puis utilise le panneau avance en dessous.</p>
+                            </div>
+                            <div id="colors-detected-list" class="swatch-grid"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="tab-structured-data" class="tab-panel">
+                <div class="card">
+                    <div class="card-head"><h2>Données structurées</h2></div>
+                    <div id="structured-data-results"></div>
+                </div>
+            </section>
+
+            <section id="tab-linking" class="tab-panel">
+                <div class="card">
+                    <div class="card-head"><h2>Linking / SEObserver</h2></div>
+                    <div class="linking-form">
+                        <label class="field-label">Clé API</label>
+                        <input id="seobserver-api-key" class="field-input" type="password" placeholder="Clé SEObserver">
+                        <div class="btn-row">
+                            <button id="btn-check-linking" class="btn btn-primary">Analyser domaine</button>
+                            <button id="btn-refresh-linking" class="btn btn-secondary">🔄 Forcer refresh</button>
+                        </div>
+                        <label class="field-label">Bulk domaines</label>
+                        <textarea id="bulk-linking-input" class="field-textarea" rows="4" placeholder="un-domaine.com\nexample.org"></textarea>
+                        <div class="btn-row">
+                            <button id="btn-run-bulk-linking" class="btn btn-primary">▶️ Lancer bulk</button>
+                            <button id="btn-bulk-csv" class="btn btn-secondary">📊 Exporter CSV</button>
+                        </div>
+                    </div>
+                    <div id="linking-results"></div>
+                    <div id="bulk-linking-results" class="bulk-results"></div>
+                </div>
+            </section>
+
+            <section id="tab-bulk" class="tab-panel">
+                <div class="card">
+                    <div class="bulk-service-grid">
+                        <button type="button" id="bulk-open-meet" class="bulk-service-btn">
+                            <span class="bulk-service-icon">📹</span>
+                            <span class="bulk-service-label">MEET</span>
+                        </button>
+                        <button type="button" id="bulk-open-sheet" class="bulk-service-btn">
+                            <span class="bulk-service-icon">📊</span>
+                            <span class="bulk-service-label">SHEET</span>
+                        </button>
+                        <button type="button" id="bulk-open-doc" class="bulk-service-btn">
+                            <span class="bulk-service-icon">📝</span>
+                            <span class="bulk-service-label">DOC</span>
+                        </button>
+                    </div>
+
+                    <div class="bulk-opener-wrap">
+                        <div class="bulk-opener-head">
+                            <h3>Bulk Opener</h3>
+                            <span id="bulk-url-count" class="bulk-count-badge">0 URL(s)</span>
+                        </div>
+                        <textarea id="bulk-opener-input" class="bulk-opener-input" rows="6" placeholder="Collez vos liens ici (un par ligne)...&#10;Exemple:&#10;devsource.fr&#10;google.com&#10;Recherche mot clé"></textarea>
+                        <div class="bulk-opener-actions">
+                            <button id="btn-bulk-clear" class="btn btn-primary bulk-clear-btn">EFFACER</button>
+                            <button id="btn-bulk-open-all" class="btn bulk-open-btn">OUVRIR TOUT</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="tab-save" class="tab-panel">
+                <div class="card">
+                    <div class="card-head">
+                        <h2>Sauvegardes</h2>
+                        <div class="btn-row">
+                            <button id="btn-export-saves" class="btn btn-secondary">💾 Exporter JSON</button>
+                            <button id="btn-clear-saves" class="btn btn-danger">🗑️ Vider</button>
+                        </div>
+                    </div>
+                    <div id="saved-list" class="saved-list"></div>
+                </div>
+            </section>
+
+            <section id="tab-brand" class="tab-panel">
+                <div class="card">
+                    <div class="card-head"><h2>Brand kit</h2></div>
+                    <div id="brand-results"></div>
+                </div>
+            </section>
+
+            <section id="tab-responsive" class="tab-panel">
+                <div class="card">
+                    <div class="card-head"><h2>Responsive</h2></div>
+                    <div id="responsive-results"></div>
+                </div>
+            </section>
+
+            <section id="tab-network" class="tab-panel">
+                <div class="card">
+                    <div class="card-head"><h2>Redirections & réseau</h2></div>
+                    <div id="network-results"></div>
+                </div>
+            </section>
+
+            <section id="tab-technical" class="tab-panel">
+                <div class="card">
+                    <div class="card-head"><h2>Technique</h2></div>
+                    <div id="technical-results"></div>
+                </div>
+            </section>
+
+            <section id="tab-technologies" class="tab-panel">
+                <div class="card">
+                    <div class="card-head"><h2>Stack & thème</h2></div>
+                    <div id="technologies-results"></div>
+                </div>
+            </section>
+
+            <section id="tab-advanced" class="tab-panel">
+                <div class="card">
+                    <div class="card-head"><h2>Avancé</h2></div>
+                    <div id="advanced-results"></div>
+                </div>
+            </section>
+
+            <section id="tab-favicon" class="tab-panel">
+                <div class="card">
+                    <div class="card-head"><h2>Favicon</h2></div>
+                    <div id="favicon-results"></div>
+                </div>
+            </section>
+        </main>
+    </div>
+    <footer>
+        <img src="../../assets/icons/logo-noir.png" alt="Logo Devsource" class="footer-logo">
+        Copyright © 2025/2026 Créé par
+        <a href="https://www.devsource.fr" target="_blank" style="color: inherit; text-decoration: none;">Devsource</a>
+        ·
+        <a href="https://maxime-guinard.fr/" target="_blank" style="color: inherit; text-decoration: none;">Maxime Guinard</a>
+    </footer>
+
+    <script src="../shared/constants.js"></script>
+    <script src="../shared/utils.js"></script>
+    <script src="../shared/storage.js"></script>
+    <script src="../shared/dom.js"></script>
+    <script src="../shared/page-data.js"></script>
+    <script src="../modules/audit/audit-rules.js"></script>
+    <script src="../modules/audit/audit.js"></script>
+    <script src="../modules/audit/audit-renderer.js"></script>
+    <script src="../modules/audit/audit-controller.js"></script>
+    <script src="../modules/seo/metadata.js"></script>
+    <script src="../modules/seo/headings.js"></script>
+    <script src="../modules/seo/links.js"></script>
+    <script src="../modules/seo/colors.js"></script>
+    <script src="../modules/seo/structured-data.js"></script>
+    <script src="../modules/seo/images.js"></script>
+    <script src="../modules/seo/words.js"></script>
+    <script src="../modules/seo/brand.js"></script>
+    <script src="../modules/seo/responsive.js"></script>
+    <script src="../modules/seo/favicon.js"></script>
+    <script src="../modules/seo/redirects.js"></script>
+    <script src="../modules/seo/tech-logos.js"></script>
+    <script src="../modules/linking/linking-api.js"></script>
+    <script src="../modules/linking/linking-renderer.js"></script>
+    <script src="../modules/linking/linking-controller.js"></script>
+    <script src="../modules/seo/advanced.js"></script>
+    <script src="popup.js"></script>
+</body>
+</html>

@@ -1,3 +1,4 @@
+// Module de l'onglet Sauvegardes : enregistrement, export et suppression des analyses.
 (() => {
     let ctx = null;
 

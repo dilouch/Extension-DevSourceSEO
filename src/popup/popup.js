@@ -1,4 +1,59 @@
+// Point d'entrée principal du popup.
+// Orchestre la collecte de données, le rendu des onglets et l'initialisation des modules.
 (() => {
+    // Détecte si le popup est chargé dans la sidebar (iframe avec ?mode=sidebar)
+    const isSidebarMode = new URLSearchParams(location.search).get('mode') === 'sidebar';
+    if (isSidebarMode) {
+        document.body.classList.add('sidebar-mode');
+
+        // Crée le dropdown de navigation qui remplace la nav verticale
+        const initSidebarDropdown = () => {
+            // Récupère tous les onglets visibles (non cachés)
+            const tabs = Array.from(document.querySelectorAll('.menu-tab[data-tab]'))
+                .filter(btn => btn.style.display !== 'none' && !btn.classList.contains('hidden-tab'));
+
+            const bar = document.createElement('div');
+            bar.id = 'sidebar-dropdown-bar';
+
+            const select = document.createElement('select');
+            select.id = 'sidebar-tab-select';
+
+            tabs.forEach(btn => {
+                const opt = document.createElement('option');
+                opt.value = btn.dataset.tab;
+                opt.textContent = btn.textContent.trim();
+                // Pré-sélectionner l'onglet actif
+                if (btn.classList.contains('active')) opt.selected = true;
+                select.appendChild(opt);
+            });
+
+            // Changer d'onglet via le dropdown
+            select.addEventListener('change', () => {
+                document.querySelector(`.menu-tab[data-tab="${select.value}"]`)?.click();
+            });
+
+            bar.appendChild(select);
+
+            // Insérer entre la topbar et le contenu principal
+            const nav = document.querySelector('.header-nav');
+            nav?.after(bar);
+
+            // Synchroniser le dropdown quand un onglet change (clic depuis le JS)
+            document.querySelectorAll('.menu-tab[data-tab]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    select.value = btn.dataset.tab;
+                });
+            });
+        };
+
+        // Attendre que le DOM soit prêt
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initSidebarDropdown);
+        } else {
+            initSidebarDropdown();
+        }
+    }
+
     const STORAGE_KEY = globalThis.DevsourceConstantsV2?.STORAGE_KEYS?.SAVES || 'v2.savedAnalyses';
     const SETTINGS_KEY = globalThis.DevsourceConstantsV2?.STORAGE_KEYS?.SETTINGS || 'v2.settings';
     const MAX_SAVES = globalThis.DevsourceConstantsV2?.MAX_SAVES || 50;
@@ -48,7 +103,7 @@
     const copyText = async (text) => { if (text) await globalThis.UtilsV2.copyText(text); };
     const switchToTab = (tabId) => document.querySelector(`.menu-tab[data-tab="${tabId}"]`)?.click();
 
-    // ── Nofollow ──────────────────────────────────────────────────────────────
+    // Nofollow
     const getNofollowSettings = () => new Promise((resolve) => {
         try {
             chrome.storage.local.get([NOFOLLOW_STORAGE_KEY], (result) => {
@@ -95,7 +150,7 @@
         }
     };
 
-    // ── Chrome helpers ────────────────────────────────────────────────────────
+    // Helpers Chrome API (tabs, scripting, storage, capture)
     const chromeQueryTabs = (queryInfo) => new Promise((resolve, reject) => {
         chrome.tabs.query(queryInfo, (tabs) => {
             if (chrome.runtime.lastError) { reject(new Error(chrome.runtime.lastError.message)); return; }
@@ -168,7 +223,7 @@
         if (themeToggleLabelEl) themeToggleLabelEl.textContent = next === 'dark' ? 'Mode sombre' : 'Mode clair';
     };
 
-    // ── Data collection ───────────────────────────────────────────────────────
+    // Collecte les données SEO de l'onglet actif via le content script
     const collectTabData = async () => {
         const tabs = await chromeQueryTabs({ active: true, currentWindow: true });
         const tab = tabs[0];
@@ -183,7 +238,7 @@
         return globalThis.PageDataV2?.createPageData ? globalThis.PageDataV2.createPageData(response.data) : response.data;
     };
 
-    // ── Render ────────────────────────────────────────────────────────────────
+    // Fonctions de rendu des différents onglets
     const renderOverview = (data) => globalThis.PopupOverviewV2?.render(overviewEl, data);
 
     const renderModules = (data) => {
@@ -302,7 +357,7 @@
         if (cdnEl) cdnEl.textContent = lastNetworkInfo?.cdn || 'N/A';
     };
 
-    // ── Bulk ──────────────────────────────────────────────────────────────────
+    // Bulk opener : ouvre plusieurs URLs en même temps
     const parseBulkEntryToUrl = (line) => {
         const v = String(line || '').trim();
         if (!v) return '';
@@ -327,7 +382,7 @@
         setStatus(`${Math.min(urls.length, 50)} onglet(s) ouvert(s).`);
     };
 
-    // ── Tabs + Settings panel ─────────────────────────────────────────────────
+    // Gestion des onglets et du panneau de paramètres
     const applyHiddenTabs = () => {
         const hidden = Array.isArray(settings.hiddenTabs) ? settings.hiddenTabs : [];
         Array.from(document.querySelectorAll('.menu-tab[data-tab]')).forEach((btn) => {
@@ -393,7 +448,7 @@
         });
     };
 
-    // ── Module init ───────────────────────────────────────────────────────────
+    // Initialise tous les modules avec un contexte partagé
     const initModules = () => {
         const sharedCtx = {
             setStatus,
@@ -431,7 +486,7 @@
         globalThis.PopupTechnicalV2?.init(sharedCtx);
     };
 
-    // ── Actions ───────────────────────────────────────────────────────────────
+    // Binding de tous les boutons et actions de l'interface
     const bindActions = () => {
         document.getElementById('btn-save-analysis')?.addEventListener('click', () => globalThis.PopupSavesV2?.save());
         document.getElementById('btn-refresh')?.addEventListener('click', loadCurrentPage);
@@ -467,9 +522,15 @@
             if (target.id === 'btn-run-audit') { runAuditAnalysis(); return; }
             if (target.closest('#btn-check-speed')) { measureSpeedNow(); }
         });
+        document.getElementById('btn-open-sidebar')?.addEventListener('click', async () => {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab?.id) return;
+        await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR' });
+        window.close(); // ferme le popup
+});
     };
 
-    // ── Load page ─────────────────────────────────────────────────────────────
+    // Charge et affiche les données de la page active
     const loadCurrentPage = async () => {
         try {
             const data = await collectTabData();
@@ -478,8 +539,6 @@
             lastAuditResult = null;
             renderOverview(data);
             renderModules(data);
-            // FIX: renderNetwork met à jour uniquement les champs IP/CDN en place
-            // plus de double renderOverview()
             await renderNetwork();
             setStatus('Analyse terminée.');
         } catch (err) {
@@ -487,7 +546,7 @@
         }
     };
 
-    // ── Init ──────────────────────────────────────────────────────────────────
+    // Point d'entrée principal
     const init = async () => {
         if (!globalThis.chrome?.tabs || !globalThis.chrome?.storage) {
             setStatus('Environnement extension non supporté.');

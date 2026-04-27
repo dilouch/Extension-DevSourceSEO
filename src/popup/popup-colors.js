@@ -1,3 +1,4 @@
+// Module de l'onglet Couleurs : pipette, palette détectée et historique des couleurs.
 (() => {
     let ctx = null;
     let pickedColors = [];

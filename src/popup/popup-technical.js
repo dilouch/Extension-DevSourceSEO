@@ -1,3 +1,4 @@
+// Module des onglets Tech et Stack : outils visuels, robots.txt et détection de technologies.
 (() => {
     let ctx = null;
 

@@ -1,11 +1,14 @@
+// Module de l'onglet Aperçu : affiche les méta, score SEO, stats et structure de la page.
 (() => {
     let ctx = null;
 
     const esc = (v) => globalThis.UtilsV2?.escapeHtml ? globalThis.UtilsV2.escapeHtml(v) : String(v ?? '');
 
     // Enregistré UNE SEULE FOIS dans init() — plus de fuite à chaque render
+    // Guard pour n'enregistrer le listener storage qu'une seule fois
     let storageListenerBound = false;
 
+    // Génère le HTML de l'onglet Aperçu et attache les événements
     const render = (container, data) => {
         if (!container || !data) return;
 
@@ -190,10 +193,11 @@
         container.querySelector('#btn-toggle-nofollow-quick')?.addEventListener('click', ctx.toggleCurrentSiteNofollow);
     };
 
+    // Initialise le module avec le contexte partagé du popup
     function init(context) {
         ctx = context;
 
-        // Bind UNE SEULE FOIS — FIX du bug de fuite de listeners
+        // Enregistre le listener storage une seule fois pour éviter les fuites mémoire
         if (!storageListenerBound) {
             storageListenerBound = true;
             try {

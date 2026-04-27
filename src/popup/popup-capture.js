@@ -1,3 +1,4 @@
+// Module de l'onglet Capture : screenshot PNG et export PDF de la page active.
 (() => {
     let ctx = null;
 

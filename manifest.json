@@ -48,6 +48,19 @@
         ],
         "service_worker": "src/background/service-worker.js"
     },
+    "web_accessible_resources": [
+        {
+            "resources": [
+                "src/popup/popup.html",
+                "src/popup/popup.css",
+                "src/popup/*.js",
+                "src/modules/**/*.js",
+                "src/shared/*.js",
+                "assets/**"
+            ],
+            "matches": ["<all_urls>"]
+        }
+    ],
     "content_scripts": [
         {
             "matches": [
@@ -55,7 +68,11 @@
             ],
             "js": [
                 "src/content/collector.js",
-                "src/content/highlight-nofollow.js"
+                "src/content/highlight-nofollow.js",
+                "src/content/sidebar.js"
+            ],
+            "css": [
+                "src/content/sidebar.css"
             ],
             "run_at": "document_idle"
         },

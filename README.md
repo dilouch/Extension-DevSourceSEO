@@ -33,7 +33,7 @@ Cette extension simplifie l'audit SEO technique pour les développeurs et market
 ## 📥 Installation
 
 ### Via le Chrome Web Store
-1. Rendez-vous sur la page officielle : [**DevSourceSEO sur Chrome Store**](LIEN_VERS_TON_EXTENSION).
+1. Rendez-vous sur la page officielle : [**DevSourceSEO sur Chrome Store**](https://chromewebstore.google.com/detail/devsource-seo-analyzer-ul/anmpjbmiiefaaaaoohjefjoeehjeomoh?hl=fr).
 2. Cliquez sur **Ajouter à Chrome**.
 3. Épinglez l'extension en cliquant sur l'icône "Puzzle" 🧩 en haut à droite de votre navigateur pour un accès rapide.
 

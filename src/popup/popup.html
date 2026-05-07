@@ -208,6 +208,10 @@
                             <span id="bulk-url-count" class="bulk-count-badge">0 URL(s)</span>
                         </div>
                         <textarea id="bulk-opener-input" class="bulk-opener-input" rows="6" placeholder="Collez vos liens ici (un par ligne)...&#10;Exemple:&#10;devsource.fr&#10;google.com&#10;Recherche mot clé"></textarea>
+                        <div style="display:grid;grid-template-columns:1fr 80px;gap:8px;margin-bottom:8px;align-items:center;">
+                            <label style="font-size:12px;font-weight:500;">Ouvrir par batch de:</label>
+                            <input type="number" id="bulk-batch-size" value="3" min="1" max="10" style="padding:6px;border:1px solid var(--border);border-radius:4px;font-size:12px;text-align:center;">
+                        </div>
                         <div class="bulk-opener-actions">
                             <button id="btn-bulk-clear" class="btn btn-primary bulk-clear-btn">EFFACER</button>
                             <button id="btn-bulk-open-all" class="btn bulk-open-btn">OUVRIR TOUT</button>
@@ -304,8 +308,9 @@
                         </div>
                     </div>
                     <p class="hint" style="margin:8px 0 14px;">Coche les onglets à afficher dans le menu. L'onglet « Paramètres » reste toujours accessible.</p>
-                    <div id="settings-tabs-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;"></div>
+                    <div id="settings-tabs-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-bottom:20px;"></div>
                 </div>
+                <div id="shortcut-config-container"></div>
             </section>
         </main>
     </div>
@@ -347,6 +352,7 @@
     <script src="popup-capture.js"></script>
     <script src="popup-saves.js"></script>
     <script src="popup-technical.js"></script>
+    <script src="popup-shortcuts.js"></script>
     <script src="popup.js"></script>
 </body>
 </html>

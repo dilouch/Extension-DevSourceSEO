@@ -69,7 +69,8 @@
             "js": [
                 "src/content/collector.js",
                 "src/content/highlight-nofollow.js",
-                "src/content/sidebar.js"
+                "src/content/sidebar.js",
+                "src/content/keyboard-shortcut.js"
             ],
             "css": [
                 "src/content/sidebar.css"

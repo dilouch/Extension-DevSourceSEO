@@ -5,6 +5,7 @@
 		{ label: 'Black', value: '#000000' },
 		{ label: 'Dark Green', value: '#12272B' },
 		{ label: 'Deep Teal', value: '#1A3638' },
+		{ label: 'Light Cyan', value: '#ABD8D8' },
 		{ label: 'Neon Yellow', value: '#F1FD0D' },
 		{ label: 'Soft Light', value: '#F0F3F1' }
 	];

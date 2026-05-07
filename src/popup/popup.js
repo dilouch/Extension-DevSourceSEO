@@ -56,6 +56,7 @@
 
     const STORAGE_KEY = globalThis.DevsourceConstantsV2?.STORAGE_KEYS?.SAVES || 'v2.savedAnalyses';
     const SETTINGS_KEY = globalThis.DevsourceConstantsV2?.STORAGE_KEYS?.SETTINGS || 'v2.settings';
+    const BULK_STORAGE_KEY = 'v2.bulk.data';
     const MAX_SAVES = globalThis.DevsourceConstantsV2?.MAX_SAVES || 50;
     const DEFAULT_SETTINGS = Object.freeze({ theme: 'light', activeTab: 'tab-overview', hiddenTabs: [] });
 
@@ -375,11 +376,47 @@
         const el = document.getElementById('bulk-url-count');
         if (el) el.textContent = `${getBulkUrls().length} URL(s)`;
     };
+
+    const saveBulkData = async () => {
+        const textarea = document.getElementById('bulk-opener-input');
+        const batchSize = document.getElementById('bulk-batch-size');
+        if (!textarea) return;
+        await storageSet(BULK_STORAGE_KEY, {
+            content: textarea.value,
+            batchSize: batchSize?.value || '3'
+        });
+    };
+
+    const loadBulkData = async () => {
+        const bulkData = await storageGet(BULK_STORAGE_KEY);
+        const textarea = document.getElementById('bulk-opener-input');
+        const batchSize = document.getElementById('bulk-batch-size');
+        if (bulkData && textarea) {
+            textarea.value = bulkData.content || '';
+            if (batchSize && bulkData.batchSize) batchSize.value = bulkData.batchSize;
+            updateBulkCount();
+        }
+    };
     const openBulkUrls = async () => {
         const urls = getBulkUrls();
         if (!urls.length) { setStatus('Aucune URL à ouvrir.'); return; }
-        urls.slice(0, 50).forEach((url) => { try { chrome.tabs.create({ url }); } catch (_) {} });
-        setStatus(`${Math.min(urls.length, 50)} onglet(s) ouvert(s).`);
+
+        const batchSizeEl = document.getElementById('bulk-batch-size');
+        const batchSize = Math.max(1, parseInt(batchSizeEl?.value || '3'));
+        const urlsToOpen = urls.slice(0, 50);
+
+        let opened = 0;
+        for (let i = 0; i < urlsToOpen.length; i += batchSize) {
+            const batch = urlsToOpen.slice(i, i + batchSize);
+            batch.forEach((url) => {
+                try { chrome.tabs.create({ url }); opened++; } catch (_) {}
+            });
+            if (i + batchSize < urlsToOpen.length) {
+                setStatus(`${opened}/${urlsToOpen.length} onglet(s)...`);
+                await new Promise(resolve => setTimeout(resolve, 600));
+            }
+        }
+        setStatus(`✓ ${opened} onglet(s) ouvert(s).`);
     };
 
     // Gestion des onglets et du panneau de paramètres
@@ -484,6 +521,7 @@
         globalThis.PopupCaptureV2?.init(sharedCtx);
         globalThis.PopupSavesV2?.init(sharedCtx);
         globalThis.PopupTechnicalV2?.init(sharedCtx);
+        globalThis.PopupShortcutsV2?.init(sharedCtx);
     };
 
     // Binding de tous les boutons et actions de l'interface
@@ -500,9 +538,14 @@
             const el = document.getElementById('bulk-opener-input');
             if (el) el.value = '';
             updateBulkCount();
+            saveBulkData();
             setStatus('Liste bulk vidée.');
         });
-        document.getElementById('bulk-opener-input')?.addEventListener('input', updateBulkCount);
+        document.getElementById('bulk-opener-input')?.addEventListener('input', () => {
+            updateBulkCount();
+            saveBulkData();
+        });
+        document.getElementById('bulk-batch-size')?.addEventListener('change', saveBulkData);
         document.getElementById('bulk-open-meet')?.addEventListener('click', () => chrome.tabs.create({ url: 'https://meet.google.com' }));
         document.getElementById('bulk-open-sheet')?.addEventListener('click', () => chrome.tabs.create({ url: 'https://sheets.new' }));
         document.getElementById('bulk-open-doc')?.addEventListener('click', () => chrome.tabs.create({ url: 'https://docs.new' }));
@@ -552,6 +595,16 @@
             setStatus('Environnement extension non supporté.');
             return;
         }
+
+        // Écouter les messages du background pour déclencher la capture
+        chrome.runtime.onMessage.addListener((message) => {
+            if (message?.type === 'TRIGGER_CAPTURE') {
+                console.log('📸 TRIGGER_CAPTURE reçu, mode:', message.mode);
+                globalThis.PopupCaptureV2?.run(message.mode || 'png');
+            }
+            return false;
+        });
+
         window.addEventListener('ds:nofollowChanged', (e) => {
             const enabled = Boolean(e.detail?.enabled);
             setNofollowState(enabled);
@@ -561,6 +614,7 @@
 
         isInitializing = true;
         await loadSettings();
+        await loadBulkData();
         isInitializing = false;
         applyTheme(settings.theme);
         initModules();

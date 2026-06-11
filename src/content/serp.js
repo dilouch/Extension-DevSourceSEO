@@ -1,10 +1,17 @@
-// Script injecté sur les pages de recherche Google.
-// Numérote les résultats organiques et ajoute un bouton toggle pour activer/désactiver.
+/**
+ * @fileoverview Script injecté uniquement sur les pages de recherche Google (`google.com/search`).
+ * Numérote les résultats organiques avec un badge et ajoute un bouton toggle ON/OFF persistant.
+ * @module serp
+ */
+
 (() => {
     if (window.__serpBadgeLoaded) return;
     window.__serpBadgeLoaded = true;
 
+    /** @const {string} Classe CSS appliquée à chaque badge de numérotation */
     const badgeClass = 'devsource-serp-badge';
+
+    /** @const {string} Clé de storage pour la préférence ON/OFF de l'utilisateur */
     const STORAGE_KEY = 'v2.serp.numbering.enabled';
 
     const style = document.createElement('style');
@@ -38,7 +45,11 @@
     `;
     document.documentElement.appendChild(style);
 
-    // Normalise une URL en supprimant le hash
+    /**
+     * Normalise une URL relative ou absolue en supprimant le fragment (`#hash`).
+     * @param {string} href - L'URL brute récupérée depuis l'attribut `href`
+     * @returns {string} L'URL normalisée sans fragment, ou la valeur brute si le parsing échoue
+     */
     const normalizeHref = (href) => {
         if (!href) return '';
         try {
@@ -48,7 +59,12 @@
         } catch (_) { return String(href); }
     };
 
-    // Supprime les accents pour des comparaisons insensibles aux diacritiques
+    /**
+     * Supprime les accents d'un texte pour permettre des comparaisons insensibles aux diacritiques.
+     * Utilisé pour comparer le contenu des résultats aux patterns à ignorer (ex : "Autres questions posées").
+     * @param {string} text - Le texte à normaliser
+     * @returns {string} Le texte en minuscules sans accents
+     */
     const stripAccents = (text) =>
         String(text || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
@@ -58,7 +74,12 @@
         'sponsored', 'annonce', 'publicite', 'voir plus de resultats'
     ];
 
-    // Retourne true si le nœud doit être ignoré (pub, PAA, pack local, etc.)
+    /**
+     * Détermine si un nœud DOM doit être ignoré lors de la numérotation.
+     * Filtre les publicités, les blocs "People Also Ask", les packs locaux et les résultats sans lien valide.
+     * @param {Element} node - Le nœud DOM candidat
+     * @returns {boolean} `true` si le nœud doit être ignoré
+     */
     const shouldSkipResultNode = (node) => {
         if (!node) return true;
         if (node.closest('[data-text-ad]')) return true;
@@ -79,7 +100,12 @@
         return false;
     };
 
-    // Récupère les résultats organiques de la page de résultats Google
+    /**
+     * Récupère la liste des résultats organiques de la page Google Search.
+     * Teste plusieurs sélecteurs CSS connus pour s'adapter aux variations de la structure du DOM de Google.
+     * Déduplique par nœud DOM et par URL pour éviter les doublons.
+     * @returns {Array<{ node: Element, title: Element }>} Liste des résultats organiques avec leur nœud et leur balise h3
+     */
     const getOrganicResults = () => {
         const SELECTOR_GROUPS = [
             '#rso .MjjYud > .g',
@@ -126,10 +152,15 @@
     let applyTimer = null;
     let lastResultCount = -1;
 
+    /** Supprime tous les badges de numérotation existants dans le DOM. */
     const clearBadges = () =>
         document.querySelectorAll(`.${badgeClass}`).forEach((b) => b.remove());
 
-    // Ajoute les badges numérotés sur les résultats organiques
+    /**
+     * Applique les badges numérotés sur les résultats organiques actuels.
+     * Ignorée si la numérotation est désactivée, ou si le nombre de `h3` n'a pas changé depuis le dernier appel.
+     * Tient compte du paramètre `?start=` de Google pour les pages de résultats suivantes (11, 21, etc.).
+     */
     const apply = () => {
         if (!enabled) { clearBadges(); lastResultCount = -1; return; }
 
@@ -154,13 +185,18 @@
         }
     };
 
-    // Regroupe les mutations rapides en un seul appel (500ms)
+    /**
+     * Planifie un appel à `apply()` avec un debounce de 500ms.
+     * Évite de re-render à chaque micro-mutation du DOM de Google.
+     */
     const scheduleApply = () => {
         clearTimeout(applyTimer);
         applyTimer = setTimeout(apply, 500);
     };
 
-    // Met à jour le texte et la couleur du bouton toggle
+    /**
+     * Met à jour l'apparence du bouton toggle (texte "SEO: ON/OFF" et couleur du point vert/rouge).
+     */
     const updateToggleBtn = () => {
         const btn = document.getElementById('ds-serp-toggle');
         if (!btn) return;
@@ -169,7 +205,10 @@
         if (label) label.textContent = enabled ? 'SEO: ON' : 'SEO: OFF';
     };
 
-    // Crée et insère le bouton toggle dans la page
+    /**
+     * Crée et insère le bouton toggle fixe en bas à droite de la page.
+     * Sauvegarde l'état ON/OFF dans `chrome.storage.local` à chaque clic.
+     */
     const createToggleBtn = () => {
         if (document.getElementById('ds-serp-toggle')) return;
         const btn = document.createElement('button');
@@ -197,8 +236,10 @@
         createToggleBtn();
     }
 
-    // Observe uniquement la zone des résultats #rso pour éviter les spikes CPU
-    // causés par les mutations de Google sur le reste de la page (suggestions, pubs, etc.)
+    /**
+     * Démarre le `MutationObserver` sur la zone `#rso` (ou `#search`) uniquement.
+     * Observer le `document.body` entier causerait des pics CPU à 30-40% sur Google.
+     */
     const observeTarget = () => {
         const rso = document.getElementById('rso') || document.getElementById('search') || document.body;
         new MutationObserver(() => {

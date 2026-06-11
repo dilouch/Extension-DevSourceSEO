@@ -1,9 +1,20 @@
+/**
+ * @fileoverview Script injecté dans chaque page web analysée.
+ * Collecte toutes les données SEO (métadonnées, liens, images, couleurs, technologies, etc.)
+ * et les renvoie au popup via `chrome.runtime.onMessage`.
+ * @module collector
+ */
+
 (() => {
     // Éviter les injections multiples
     if (window.__devsourceLoaded) return;
     window.__devsourceLoaded = true;
 
-    // Helper interne pour nettoyer les sélecteurs meta
+    /**
+     * Lit le contenu d'une balise `<meta>` via un sélecteur CSS.
+     * @param {string} selector - Sélecteur CSS ciblant la balise meta (ex: `meta[name="description"]`)
+     * @returns {string} La valeur de l'attribut `content`, ou une chaîne vide si absente
+     */
     const getMeta = (selector) => {
         try {
             return document.querySelector(selector)?.getAttribute('content') || '';
@@ -11,6 +22,17 @@
             return '';
         }
     };
+    /**
+     * Extrait et parse toutes les balises `<script type="application/ld+json">` de la page.
+     * Parcourt récursivement les objets JSON pour recenser tous les types Schema.org présents.
+     * @returns {{
+     *   jsonLdCount: number,
+     *   invalidJsonLdCount: number,
+     *   jsonLdTypes: string[],
+     *   jsonLdTypeCounts: Object.<string, number>,
+     *   structuredData: Array<Object>
+     * }}
+     */
     function extractStructuredData() {
         const scripts = Array.from(document.querySelectorAll('script[type="application/ld+json"]'));
 
@@ -79,6 +101,12 @@
         };
     }
 
+    /**
+     * Analyse les couleurs utilisées sur la page (texte et fond) via `getComputedStyle`.
+     * Limite l'analyse aux 1200 premiers nœuds DOM pour limiter l'impact sur les performances.
+     * @returns {{ text: string[], background: string[], all: string[] }}
+     * Les 12 couleurs de texte les plus fréquentes, les 12 couleurs de fond, et jusqu'à 24 couleurs combinées
+     */
     function extractColors() {
         const textMap = new Map();
         const backgroundMap = new Map();
@@ -109,6 +137,11 @@
         return { text, background, all };
     }
 
+    /**
+     * Collecte toutes les balises `<img>` de la page avec leurs attributs principaux.
+     * Filtre les images sans src.
+     * @returns {Array<{ src: string, currentSrc: string, alt: string, width: number, height: number, loading: string }>}
+     */
     function extractImages() {
         return Array.from(document.querySelectorAll('img')).map((img) => ({
             src: img.currentSrc || img.src || '',
@@ -120,6 +153,11 @@
         })).filter((item) => item.src);
     }
 
+    /**
+     * Trouve l'URL du favicon principal via les balises `<link rel="icon">`.
+     * Résout l'URL relative en URL absolue.
+     * @returns {string} L'URL absolue du favicon, ou une chaîne vide si introuvable
+     */
     function extractFavicon() {
         const candidates = Array.from(document.querySelectorAll('link[rel*="icon"]'));
         const first = candidates.find((el) => el.getAttribute('href'));
@@ -131,6 +169,10 @@
         }
     }
 
+    /**
+     * Collecte tous les titres H1 à H6 de la page avec leur niveau, texte et ordre d'apparition.
+     * @returns {{ counts: Object.<string, number>, list: Array<{ level: string, index: number, order: number, text: string }>, total: number }}
+     */
     function extractHeadings() {
         const levels = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
         const counts = { H1: 0, H2: 0, H3: 0, H4: 0, H5: 0, H6: 0 };
@@ -173,6 +215,17 @@
         };
     }
 
+    /**
+     * Analyse tous les liens `<a href>` de la page.
+     * Classe chaque lien en interne/externe selon le hostname, et détecte l'attribut `nofollow`.
+     * @returns {{
+     *   summary: { total: number, internal: number, external: number, nofollow: number },
+     *   all: Array<{ href: string, text: string, nofollow: boolean, isInternal: boolean, target: string }>,
+     *   internal: Array,
+     *   external: Array,
+     *   nofollow: Array
+     * }}
+     */
     function extractLinkDetails() {
         const currentHost = window.location.hostname;
         const all = [];
@@ -181,18 +234,18 @@
             const href = (a.getAttribute('href') || '').trim();
             if (!href) return;
 
-            let absoluteUrl = '';
+            let absoluteUrl;
             try {
                 absoluteUrl = new URL(href, window.location.href).href;
-            } catch (e) {
+            } catch (_) {
                 return;
             }
 
-            let isInternal = false;
+            let isInternal;
             try {
                 const targetHost = new URL(absoluteUrl).hostname;
                 isInternal = targetHost === currentHost;
-            } catch (e) {
+            } catch (_) {
                 isInternal = false;
             }
 
@@ -226,6 +279,12 @@
         };
     }
 
+    /**
+     * Extrait les mots les plus fréquents du contenu textuel de la page.
+     * Ignore les mots courants français (stop words), les chiffres seuls et les mots de 2 caractères ou moins.
+     * @param {number} [limit=120] - Nombre maximum de mots à retourner
+     * @returns {Array<{ word: string, count: number }>} Liste triée par fréquence décroissante
+     */
     function extractWords(limit = 120) {
         const stopWords = new Set([
             'le', 'la', 'les', 'de', 'des', 'du', 'un', 'une', 'et', 'est', 'en', 'que', 'qui', 'quoi',
@@ -255,6 +314,11 @@
             .slice(0, limit);
     }
 
+    /**
+     * Détecte les technologies utilisées par la page (CMS, thème, plugins, frameworks JS).
+     * Utilise des patterns regex sur le HTML complet et les URLs des scripts chargés.
+     * @returns {{ cms: { items: Array }, theme: { items: Array }, plugin: { items: Array }, script: { items: Array } }}
+     */
     function extractTechnologies() {
         const html = document.documentElement?.outerHTML || '';
         const scripts = Array.from(document.querySelectorAll('script[src]')).map((script) => script.src);
@@ -338,6 +402,11 @@
         return tech;
     }
 
+    /**
+     * Mesure les métriques de performance de chargement de la page via l'API `PerformanceNavigationTiming`.
+     * Utilise `performance.timing` comme fallback pour les anciens navigateurs.
+     * @returns {{ ttfb: number, domReady: number, load: number }} Temps en millisecondes
+     */
     function extractPerformance() {
         const nav = performance.getEntriesByType('navigation')[0];
         if (!nav) {
@@ -361,6 +430,12 @@
         cleanup: null
     };
 
+    /**
+     * Normalise une valeur de couleur CSS en hexadécimal majuscule (`#RRGGBB`).
+     * Accepte les formats `#rgb`, `#rrggbb`, `rgb()` et `rgba()`.
+     * @param {string} value - La couleur CSS brute à normaliser
+     * @returns {string} La couleur en HEX majuscule, ou une chaîne vide si invalide/transparente
+     */
     const normalizePickedColor = (value) => {
         const input = String(value || '').trim();
         if (!input || input === 'transparent' || input === 'rgba(0, 0, 0, 0)') return '';
@@ -377,6 +452,9 @@
         return `#${c(rgb[1])}${c(rgb[2])}${c(rgb[3])}`.toUpperCase();
     };
 
+    /**
+     * Arrête la pipette de couleur active et nettoie tous les événements et éléments DOM injectés.
+     */
     const stopColorPicker = () => {
         if (typeof colorPickerState.cleanup === 'function') {
             colorPickerState.cleanup();
@@ -385,6 +463,12 @@
         colorPickerState.active = false;
     };
 
+    /**
+     * Lance la pipette de couleur en injectant un overlay transparent sur la page.
+     * Surligne l'élément survolé et capture la couleur au clic.
+     * Appuyer sur Échap annule la sélection.
+     * @param {function(Object): void} sendResponse - Callback pour renvoyer la couleur sélectionnée au popup
+     */
     const startColorPicker = (sendResponse) => {
         stopColorPicker();
         colorPickerState.active = true;
@@ -502,6 +586,11 @@
         };
     };
 
+    /**
+     * Orchestre l'extraction de toutes les données SEO de la page courante.
+     * Appelle toutes les fonctions `extract*` et assemble le résultat en un seul objet.
+     * @returns {Object} L'objet complet des données de la page (url, title, meta, couleurs, liens, images, etc.)
+     */
     function collectData() {
         const structuredData = extractStructuredData();
         const colors = extractColors();

@@ -1,0 +1,37 @@
+{
+  "source": {
+    "include": ["src"],
+    "includePattern": "\\.js$",
+    "excludePattern": "(node_modules/|docs/)"
+  },
+  "opts": {
+    "recurse": true,
+    "destination": "./docs",
+    "template": "./node_modules/docdash"
+  },
+  "plugins": ["plugins/markdown"],
+  "templates": {
+    "cleverLinks": false,
+    "monospaceLinks": false,
+    "default": {
+      "outputSourceFiles": true
+    }
+  },
+  "docdash": {
+    "static": true,
+    "sort": true,
+    "search": true,
+    "collapse": false,
+    "typedefs": true,
+    "removeQuotes": "none",
+    "scripts": [],
+    "menu": {
+      "Github": {
+        "href": "#",
+        "target": "_blank",
+        "class": "menu-item",
+        "id": "website_link"
+      }
+    }
+  }
+}

@@ -1,9 +1,21 @@
-// Module de l'onglet Sauvegardes : enregistrement, export et suppression des analyses.
+/**
+ * @fileoverview Module de l'onglet Sauvegardes.
+ * Gère l'enregistrement des analyses SEO, leur affichage en liste,
+ * l'export JSON et la suppression.
+ * Exposé sur `globalThis.PopupSavesV2`.
+ * @module popup-saves
+ */
+
 (() => {
     let ctx = null;
 
     const esc = (v) => globalThis.UtilsV2?.escapeHtml ? globalThis.UtilsV2.escapeHtml(v) : String(v ?? '');
 
+    /**
+     * Ouvre une modale avec le détail complet d'une analyse sauvegardée.
+     * Permet l'export JSON de l'entrée individuelle et la fermeture via Échap ou clic extérieur.
+     * @param {Object} item - L'entrée de sauvegarde à afficher
+     */
     const openSaveModal = (item) => {
         document.getElementById('ds-save-modal')?.remove();
         const d = item.data || {};
@@ -70,6 +82,10 @@
         });
     };
 
+    /**
+     * Recharge et affiche la liste des analyses sauvegardées depuis le storage.
+     * Chaque entrée est cliquable et ouvre `openSaveModal`.
+     */
     const refresh = async () => {
         const container = document.getElementById('saved-list');
         if (!container) return;
@@ -104,6 +120,10 @@
         });
     };
 
+    /**
+     * Sauvegarde l'analyse courante dans le storage.
+     * Insère en tête de liste et limite à `MAX_SAVES` entrées.
+     */
     const save = async () => {
         const data = ctx.getLastData();
         if (!data) { ctx.setStatus('Aucune analyse à sauvegarder.'); return; }
@@ -126,6 +146,9 @@
         ctx.setStatus('Analyse sauvegardée.');
     };
 
+    /**
+     * Exporte toutes les sauvegardes en un seul fichier JSON téléchargeable.
+     */
     const exportAll = async () => {
         const entries = await ctx.storageGet(ctx.STORAGE_KEY);
         const list = Array.isArray(entries) ? entries : [];
@@ -136,6 +159,9 @@
         ctx.setStatus('Export JSON lancé.');
     };
 
+    /**
+     * Supprime toutes les sauvegardes du storage et rafraîchit la liste.
+     */
     const clear = async () => {
         await ctx.storageSet(ctx.STORAGE_KEY, []);
         await refresh();

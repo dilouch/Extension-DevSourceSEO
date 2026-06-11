@@ -1,4 +1,6 @@
 (() => {
+    const esc = (v) => globalThis.UtilsV2?.escapeHtml ? globalThis.UtilsV2.escapeHtml(v) : String(v ?? '');
+
     const injectStyles = () => {
         if (document.getElementById('meta-v2-styles')) return;
         const style = document.createElement('style');

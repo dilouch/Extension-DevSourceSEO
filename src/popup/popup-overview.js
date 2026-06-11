@@ -1,14 +1,23 @@
-// Module de l'onglet Aperçu : affiche les méta, score SEO, stats et structure de la page.
+/**
+ * @fileoverview Module de l'onglet Aperçu.
+ * Affiche le résumé visuel de la page : titre, description, aperçu Google, score SEO,
+ * statistiques, structure des titres Hn, IP/CDN et mots-clés principaux.
+ * Exposé sur `globalThis.PopupOverviewV2`.
+ * @module popup-overview
+ */
+
 (() => {
     let ctx = null;
 
     const esc = (v) => globalThis.UtilsV2?.escapeHtml ? globalThis.UtilsV2.escapeHtml(v) : String(v ?? '');
 
-    // Enregistré UNE SEULE FOIS dans init() — plus de fuite à chaque render
-    // Guard pour n'enregistrer le listener storage qu'une seule fois
     let storageListenerBound = false;
 
-    // Génère le HTML de l'onglet Aperçu et attache les événements
+    /**
+     * Génère le HTML complet de l'onglet Aperçu et attache les événements (copie, nofollow).
+     * @param {HTMLElement} container - L'élément DOM où injecter le rendu
+     * @param {Object} data - Les données SEO collectées par `collector.js`
+     */
     const render = (container, data) => {
         if (!container || !data) return;
 
@@ -193,11 +202,15 @@
         container.querySelector('#btn-toggle-nofollow-quick')?.addEventListener('click', ctx.toggleCurrentSiteNofollow);
     };
 
-    // Initialise le module avec le contexte partagé du popup
+    /**
+     * Initialise le module avec le contexte partagé du popup.
+     * Enregistre une seule fois le listener `chrome.storage.onChanged` pour mettre à jour
+     * le bouton nofollow sans fuite mémoire.
+     * @param {Object} context - Le contexte partagé fourni par `popup.js`
+     */
     function init(context) {
         ctx = context;
 
-        // Enregistre le listener storage une seule fois pour éviter les fuites mémoire
         if (!storageListenerBound) {
             storageListenerBound = true;
             try {

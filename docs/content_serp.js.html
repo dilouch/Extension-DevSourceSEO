@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>content/serp.js - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    <input type="text" id="nav-search" placeholder="Search" />
+    
+    
+    <h2><a href="index.html">Home</a></h2><h2><a href="#" target="_blank" class="menu-item" id="website_link" >Github</a></h2><h3>Modules</h3><ul><li><a href="module-collector.html">collector</a></li><li><a href="module-network-info.html">network-info</a></li><li><a href="module-popup.html">popup</a></li><li><a href="module-popup-capture.html">popup-capture</a></li><li><a href="module-popup-overview.html">popup-overview</a></li><li><a href="module-popup-saves.html">popup-saves</a></li><li><a href="module-redirect-history.html">redirect-history</a></li><li><a href="module-serp.html">serp</a></li><li><a href="module-sidebar.html">sidebar</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">content/serp.js</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * @fileoverview Script injecté uniquement sur les pages de recherche Google (`google.com/search`).
+ * Numérote les résultats organiques avec un badge et ajoute un bouton toggle ON/OFF persistant.
+ * @module serp
+ */
+
+(() => {
+    if (window.__serpBadgeLoaded) return;
+    window.__serpBadgeLoaded = true;
+
+    /** @const {string} Classe CSS appliquée à chaque badge de numérotation */
+    const badgeClass = 'devsource-serp-badge';
+
+    /** @const {string} Clé de storage pour la préférence ON/OFF de l'utilisateur */
+    const STORAGE_KEY = 'v2.serp.numbering.enabled';
+
+    const style = document.createElement('style');
+    style.textContent = `
+        .${badgeClass} {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 20px; height: 20px; padding: 0 6px; margin-right: 6px;
+            border-radius: 999px; background: #12272b; color: #fff;
+            font-size: 11px; font-weight: 700; vertical-align: middle;
+        }
+        #ds-serp-toggle {
+            position: fixed; bottom: 20px; right: 20px; z-index: 2147483647;
+            display: inline-flex; align-items: center; gap: 7px;
+            padding: 7px 13px 7px 10px; border-radius: 999px; border: none; cursor: pointer;
+            font-size: 12px; font-weight: 600;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #1e1e1e; color: #e0e0e0;
+            box-shadow: 0 2px 10px rgba(0,0,0,.45);
+            transition: opacity .15s;
+            user-select: none;
+        }
+        #ds-serp-toggle:hover { opacity: .85; }
+        #ds-serp-toggle .ds-dot {
+            width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+            background: #22c55e; box-shadow: 0 0 5px #22c55e99;
+            transition: background .2s, box-shadow .2s;
+        }
+        #ds-serp-toggle.is-off .ds-dot {
+            background: #ef4444; box-shadow: 0 0 5px #ef444499;
+        }
+    `;
+    document.documentElement.appendChild(style);
+
+    /**
+     * Normalise une URL relative ou absolue en supprimant le fragment (`#hash`).
+     * @param {string} href - L'URL brute récupérée depuis l'attribut `href`
+     * @returns {string} L'URL normalisée sans fragment, ou la valeur brute si le parsing échoue
+     */
+    const normalizeHref = (href) => {
+        if (!href) return '';
+        try {
+            const url = new URL(href, location.href);
+            url.hash = '';
+            return url.toString();
+        } catch (_) { return String(href); }
+    };
+
+    /**
+     * Supprime les accents d'un texte pour permettre des comparaisons insensibles aux diacritiques.
+     * Utilisé pour comparer le contenu des résultats aux patterns à ignorer (ex : "Autres questions posées").
+     * @param {string} text - Le texte à normaliser
+     * @returns {string} Le texte en minuscules sans accents
+     */
+    const stripAccents = (text) =>
+        String(text || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+    const SKIP_PATTERNS = [
+        'people also ask', 'autres questions posees', 'questions connexes',
+        'related searches', 'recherches associees', 'recherches liees',
+        'sponsored', 'annonce', 'publicite', 'voir plus de resultats'
+    ];
+
+    /**
+     * Détermine si un nœud DOM doit être ignoré lors de la numérotation.
+     * Filtre les publicités, les blocs "People Also Ask", les packs locaux et les résultats sans lien valide.
+     * @param {Element} node - Le nœud DOM candidat
+     * @returns {boolean} `true` si le nœud doit être ignoré
+     */
+    const shouldSkipResultNode = (node) => {
+        if (!node) return true;
+        if (node.closest('[data-text-ad]')) return true;
+        if (node.closest('.commercial-unit-desktop-rhs')) return true;
+        if (node.closest('.uEierd')) return true;
+        if (node.querySelector('.rllt__details, [data-local-attribute], .local-pack')) return true;
+
+        const h3 = node.querySelector('h3');
+        if (!h3) return true;
+        const link = h3.closest('a') || node.querySelector('a[href]');
+        if (!link) return true;
+        const href = String(link.getAttribute('href') || link.href || '');
+        if (!href || href.startsWith('javascript:') || href.startsWith('mailto:') || href.startsWith('#')) return true;
+
+        const text = stripAccents(node.textContent);
+        if (SKIP_PATTERNS.some((p) => text.includes(p))) return true;
+
+        return false;
+    };
+
+    /**
+     * Récupère la liste des résultats organiques de la page Google Search.
+     * Teste plusieurs sélecteurs CSS connus pour s'adapter aux variations de la structure du DOM de Google.
+     * Déduplique par nœud DOM et par URL pour éviter les doublons.
+     * @returns {Array&lt;{ node: Element, title: Element }>} Liste des résultats organiques avec leur nœud et leur balise h3
+     */
+    const getOrganicResults = () => {
+        const SELECTOR_GROUPS = [
+            '#rso .MjjYud > .g',
+            '#rso > .MjjYud',
+            '#rso > div.g',
+            '#rso > div[data-snc]',
+            '#rso > div[data-hveid]',
+        ];
+
+        let candidates = [];
+        for (const sel of SELECTOR_GROUPS) {
+            const found = Array.from(document.querySelectorAll(sel));
+            if (found.length >= 2) { candidates = found; break; }
+        }
+
+        if (candidates.length &lt; 2) {
+            candidates = Array.from(document.querySelectorAll('#rso > div, #search .MjjYud'));
+        }
+
+        const seenNode = new Set();
+        const seenHref = new Set();
+        const results = [];
+
+        candidates.forEach((node) => {
+            if (!node || seenNode.has(node) || shouldSkipResultNode(node)) return;
+            seenNode.add(node);
+
+            const h3 = node.querySelector('h3');
+            const link = h3?.closest('a') || node.querySelector('a h3')?.closest('a') || node.querySelector('a[href]');
+            if (!h3 || !link) return;
+
+            const href = normalizeHref(link.getAttribute('href') || link.href);
+            if (!href || seenHref.has(href)) return;
+            seenHref.add(href);
+
+            results.push({ node, title: h3 });
+        });
+
+        return results;
+    };
+
+    let enabled = true;
+    let applying = false;
+    let applyTimer = null;
+    let lastResultCount = -1;
+
+    /** Supprime tous les badges de numérotation existants dans le DOM. */
+    const clearBadges = () =>
+        document.querySelectorAll(`.${badgeClass}`).forEach((b) => b.remove());
+
+    /**
+     * Applique les badges numérotés sur les résultats organiques actuels.
+     * Ignorée si la numérotation est désactivée, ou si le nombre de `h3` n'a pas changé depuis le dernier appel.
+     * Tient compte du paramètre `?start=` de Google pour les pages de résultats suivantes (11, 21, etc.).
+     */
+    const apply = () => {
+        if (!enabled) { clearBadges(); lastResultCount = -1; return; }
+
+        // Vérification rapide : on ne refait le rendu que si le nombre de h3 a changé
+        const quickCount = document.querySelectorAll('#rso h3, #search h3').length;
+        if (quickCount === lastResultCount) return;
+
+        applying = true;
+        try {
+            clearBadges();
+            const start = Number.parseInt(new URLSearchParams(location.search).get('start') || '0', 10) || 0;
+            const results = getOrganicResults();
+            results.forEach((result, index) => {
+                const badge = document.createElement('span');
+                badge.className = badgeClass;
+                badge.textContent = String(start + index + 1);
+                result.title.prepend(badge);
+            });
+            lastResultCount = quickCount;
+        } finally {
+            applying = false;
+        }
+    };
+
+    /**
+     * Planifie un appel à `apply()` avec un debounce de 500ms.
+     * Évite de re-render à chaque micro-mutation du DOM de Google.
+     */
+    const scheduleApply = () => {
+        clearTimeout(applyTimer);
+        applyTimer = setTimeout(apply, 500);
+    };
+
+    /**
+     * Met à jour l'apparence du bouton toggle (texte "SEO: ON/OFF" et couleur du point vert/rouge).
+     */
+    const updateToggleBtn = () => {
+        const btn = document.getElementById('ds-serp-toggle');
+        if (!btn) return;
+        btn.classList.toggle('is-off', !enabled);
+        const label = btn.querySelector('.ds-label');
+        if (label) label.textContent = enabled ? 'SEO: ON' : 'SEO: OFF';
+    };
+
+    /**
+     * Crée et insère le bouton toggle fixe en bas à droite de la page.
+     * Sauvegarde l'état ON/OFF dans `chrome.storage.local` à chaque clic.
+     */
+    const createToggleBtn = () => {
+        if (document.getElementById('ds-serp-toggle')) return;
+        const btn = document.createElement('button');
+        btn.id = 'ds-serp-toggle';
+        btn.innerHTML = '&lt;span class="ds-dot">&lt;/span>&lt;span class="ds-label">&lt;/span>';
+        btn.addEventListener('click', () => {
+            enabled = !enabled;
+            try { chrome.storage.local.set({ [STORAGE_KEY]: enabled }); } catch (_) {}
+            updateToggleBtn();
+            if (enabled) apply(); else clearBadges();
+        });
+        document.body?.appendChild(btn);
+        updateToggleBtn();
+    };
+
+    // Charge la préférence depuis le storage puis démarre
+    try {
+        chrome.storage.local.get([STORAGE_KEY], (result) => {
+            enabled = result[STORAGE_KEY] !== false;
+            apply();
+            createToggleBtn();
+        });
+    } catch (_) {
+        apply();
+        createToggleBtn();
+    }
+
+    /**
+     * Démarre le `MutationObserver` sur la zone `#rso` (ou `#search`) uniquement.
+     * Observer le `document.body` entier causerait des pics CPU à 30-40% sur Google.
+     */
+    const observeTarget = () => {
+        const rso = document.getElementById('rso') || document.getElementById('search') || document.body;
+        new MutationObserver(() => {
+            if (applying) return; // ignore les mutations causées par nos propres badges
+            scheduleApply();
+        }).observe(rso, { childList: true, subtree: true });
+    };
+
+    if (document.getElementById('rso') || document.getElementById('search')) {
+        observeTarget();
+    } else {
+        // Attend que #rso apparaisse puis se déconnecte
+        const waitObserver = new MutationObserver(() => {
+            if (document.getElementById('rso') || document.getElementById('search')) {
+                waitObserver.disconnect();
+                observeTarget();
+            }
+        });
+        waitObserver.observe(document.documentElement, { childList: true, subtree: true });
+    }
+})();
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Thu Jun 11 2026 13:57:17 GMT+0200 (Central European Summer Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+<script src="scripts/search.js" defer></script>
+
+
+
+</body>
+</html>

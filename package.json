@@ -1,0 +1,27 @@
+{
+  "name": "devsource-analyze-seo-v2",
+  "version": "1.0.0",
+  "description": "<p align=\"center\">   <img src=\"assets/icons/logo-popup.png\" alt=\"DevSourceSEO Logo\" width=\"128\" height=\"128\"> </p>",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dilouch/Extension-DevSourceSEO.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/dilouch/Extension-DevSourceSEO/issues"
+  },
+  "homepage": "https://github.com/dilouch/Extension-DevSourceSEO#readme",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "docdash": "^2.0.2",
+    "eslint": "^10.4.1",
+    "jsdoc": "^4.0.5"
+  }
+}

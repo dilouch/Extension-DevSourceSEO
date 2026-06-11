@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>popup/popup-saves.js - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    <input type="text" id="nav-search" placeholder="Search" />
+    
+    
+    <h2><a href="index.html">Home</a></h2><h2><a href="#" target="_blank" class="menu-item" id="website_link" >Github</a></h2><h3>Modules</h3><ul><li><a href="module-collector.html">collector</a></li><li><a href="module-network-info.html">network-info</a></li><li><a href="module-popup.html">popup</a></li><li><a href="module-popup-capture.html">popup-capture</a></li><li><a href="module-popup-overview.html">popup-overview</a></li><li><a href="module-popup-saves.html">popup-saves</a></li><li><a href="module-redirect-history.html">redirect-history</a></li><li><a href="module-serp.html">serp</a></li><li><a href="module-sidebar.html">sidebar</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">popup/popup-saves.js</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * @fileoverview Module de l'onglet Sauvegardes.
+ * Gère l'enregistrement des analyses SEO, leur affichage en liste,
+ * l'export JSON et la suppression.
+ * Exposé sur `globalThis.PopupSavesV2`.
+ * @module popup-saves
+ */
+
+(() => {
+    let ctx = null;
+
+    const esc = (v) => globalThis.UtilsV2?.escapeHtml ? globalThis.UtilsV2.escapeHtml(v) : String(v ?? '');
+
+    /**
+     * Ouvre une modale avec le détail complet d'une analyse sauvegardée.
+     * Permet l'export JSON de l'entrée individuelle et la fermeture via Échap ou clic extérieur.
+     * @param {Object} item - L'entrée de sauvegarde à afficher
+     */
+    const openSaveModal = (item) => {
+        document.getElementById('ds-save-modal')?.remove();
+        const d = item.data || {};
+        const audit = Number(item.score || 0);
+        const scoreClass = audit >= 75 ? 'score-a' : audit >= 50 ? 'score-b' : 'score-f';
+
+        const metaRows = [
+            ['URL', d.url || item.url || '-'],
+            ['Titre', d.title || item.title || '-'],
+            ['Description', d.metaDescription || '-'],
+            ['Canonical', d.canonical || '-'],
+            ['Robots', d.robots || '-'],
+            ['Langue', d.lang || '-'],
+            ['Viewport', d.viewport || '-'],
+            ['H1', d.h1 || '-'],
+            ['Mots', String(d.wordCount || item.wordCount || 0)],
+            ['Images', String(d.counts?.images || 0)],
+            ['Liens', String(d.counts?.links || 0)],
+            ['JSON-LD', String(d.jsonLdCount || 0)],
+            ['OG Title', d.openGraph?.title || '-'],
+            ['Twitter Card', d.twitterCard?.card || '-'],
+            ['Sauvegardé le', item.createdLabel || item.createdAt || '-']
+        ].map(([k, v]) => `
+            &lt;div class="save-modal-row">
+                &lt;span class="save-modal-key">${esc(k)}&lt;/span>
+                &lt;span class="save-modal-val">${esc(v)}&lt;/span>
+            &lt;/div>`).join('');
+
+        const modal = document.createElement('div');
+        modal.id = 'ds-save-modal';
+        modal.innerHTML = `
+            &lt;div class="save-modal-backdrop">&lt;/div>
+            &lt;div class="save-modal-box" role="dialog" aria-modal="true">
+                &lt;div class="save-modal-head">
+                    &lt;div class="save-modal-head-info">
+                        &lt;div class="save-modal-title">${esc(item.title || '(Sans titre)')}&lt;/div>
+                        &lt;div class="save-modal-url">${esc(item.url || '')}&lt;/div>
+                    &lt;/div>
+                    &lt;div class="save-modal-score ${scoreClass}">${audit}&lt;/div>
+                &lt;/div>
+                &lt;div class="save-modal-body">
+                    &lt;div class="save-modal-section-title">Données SEO&lt;/div>
+                    &lt;div class="save-modal-table">${metaRows}&lt;/div>
+                &lt;/div>
+                &lt;div class="save-modal-footer">
+                    &lt;button type="button" class="btn btn-secondary" id="save-modal-export">💾 Exporter JSON&lt;/button>
+                    &lt;button type="button" class="btn btn-primary" id="save-modal-close">✕ Fermer&lt;/button>
+                &lt;/div>
+            &lt;/div>`;
+
+        document.body.appendChild(modal);
+        requestAnimationFrame(() => modal.querySelector('.save-modal-box')?.classList.add('is-open'));
+
+        const close = () => { modal.classList.add('is-closing'); setTimeout(() => modal.remove(), 200); };
+        modal.querySelector('.save-modal-backdrop')?.addEventListener('click', close);
+        modal.querySelector('#save-modal-close')?.addEventListener('click', close);
+        modal.querySelector('#save-modal-export')?.addEventListener('click', () => {
+            const blob = new Blob([JSON.stringify(item, null, 2)], { type: 'application/json' });
+            const date = new Date().toISOString().slice(0, 10);
+            globalThis.UtilsV2?.downloadBlob(blob, `save-${date}.json`);
+        });
+        document.addEventListener('keydown', function escClose(e) {
+            if (e.key === 'Escape') { close(); document.removeEventListener('keydown', escClose); }
+        });
+    };
+
+    /**
+     * Recharge et affiche la liste des analyses sauvegardées depuis le storage.
+     * Chaque entrée est cliquable et ouvre `openSaveModal`.
+     */
+    const refresh = async () => {
+        const container = document.getElementById('saved-list');
+        if (!container) return;
+        const entries = await ctx.storageGet(ctx.STORAGE_KEY);
+        const saves = Array.isArray(entries) ? entries : [];
+        if (!saves.length) {
+            container.innerHTML = '&lt;div class="hint">Aucune sauvegarde pour le moment.&lt;/div>';
+            return;
+        }
+        container.innerHTML = saves.map((item, idx) => {
+            const audit = Number(item.score || 0);
+            const badgeClass = audit >= 75 ? 'ok' : audit >= 50 ? 'warn' : 'err';
+            return `
+            &lt;div class="save-item save-item-clickable" data-save-index="${idx}" tabindex="0" role="button">
+                &lt;div class="save-item-header">
+                    &lt;strong>${esc(item.title || '(Sans titre)')}&lt;/strong>
+                    &lt;span class="save-score-badge save-score-${badgeClass}">${audit}/100&lt;/span>
+                &lt;/div>
+                &lt;div class="save-meta">${esc(item.url || '')}&lt;/div>
+                &lt;div class="save-meta">${esc(item.createdLabel || item.createdAt || '')} • ${Number(item.wordCount || 0)} mots&lt;/div>
+                &lt;div class="save-hint">Cliquer pour les détails →&lt;/div>
+            &lt;/div>`;
+        }).join('');
+
+        Array.from(container.querySelectorAll('.save-item-clickable')).forEach((el) => {
+            const open = () => {
+                const idx = Number(el.getAttribute('data-save-index'));
+                if (saves[idx]) openSaveModal(saves[idx]);
+            };
+            el.addEventListener('click', open);
+            el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') open(); });
+        });
+    };
+
+    /**
+     * Sauvegarde l'analyse courante dans le storage.
+     * Insère en tête de liste et limite à `MAX_SAVES` entrées.
+     */
+    const save = async () => {
+        const data = ctx.getLastData();
+        if (!data) { ctx.setStatus('Aucune analyse à sauvegarder.'); return; }
+        const now = new Date();
+        const entry = {
+            id: String(now.getTime()),
+            createdAt: now.toISOString(),
+            createdLabel: now.toLocaleString('fr-FR'),
+            url: data.url,
+            title: data.title,
+            wordCount: data.wordCount,
+            score: ctx.getLastAuditResult()?.score || 0,
+            data
+        };
+        const current = await ctx.storageGet(ctx.STORAGE_KEY);
+        const list = Array.isArray(current) ? current : [];
+        list.unshift(entry);
+        await ctx.storageSet(ctx.STORAGE_KEY, list.slice(0, ctx.MAX_SAVES));
+        await refresh();
+        ctx.setStatus('Analyse sauvegardée.');
+    };
+
+    /**
+     * Exporte toutes les sauvegardes en un seul fichier JSON téléchargeable.
+     */
+    const exportAll = async () => {
+        const entries = await ctx.storageGet(ctx.STORAGE_KEY);
+        const list = Array.isArray(entries) ? entries : [];
+        if (!list.length) { ctx.setStatus('Aucune sauvegarde à exporter.'); return; }
+        const blob = new Blob([JSON.stringify(list, null, 2)], { type: 'application/json' });
+        const date = new Date().toISOString().slice(0, 10);
+        globalThis.UtilsV2.downloadBlob(blob, `devsource-sauvegardes-${date}.json`);
+        ctx.setStatus('Export JSON lancé.');
+    };
+
+    /**
+     * Supprime toutes les sauvegardes du storage et rafraîchit la liste.
+     */
+    const clear = async () => {
+        await ctx.storageSet(ctx.STORAGE_KEY, []);
+        await refresh();
+        ctx.setStatus('Sauvegardes vidées.');
+    };
+
+    function init(context) { ctx = context; }
+
+    globalThis.PopupSavesV2 = Object.freeze({ init, refresh, save, exportAll, clear });
+})();
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Thu Jun 11 2026 13:57:17 GMT+0200 (Central European Summer Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+<script src="scripts/search.js" defer></script>
+
+
+
+</body>
+</html>

@@ -1,10 +1,24 @@
-// Stocke et récupère les infos réseau (IP, CDN, serveur) de chaque page visitée.
-// Plafonné à MAX_URL_ENTRIES entrées pour éviter une croissance infinie du storage.
+/**
+ * @fileoverview Module background qui intercepte les réponses HTTP pour stocker
+ * les informations réseau (IP, CDN, serveur, cache) de chaque page visitée.
+ * Plafonné à 150 entrées pour éviter une croissance infinie du storage.
+ * Exposé sur `globalThis.NetworkInfoV2`.
+ * @module network-info
+ */
+
 (() => {
+    /** @const {string} Clé de stockage dans `chrome.storage.local` */
     const STORAGE_KEY = 'networkInfoV2';
+
+    /** @const {number} Nombre maximum d'URLs conservées dans le storage */
     const MAX_URL_ENTRIES = 150;
 
-    // Convertit le tableau de headers en objet clé/valeur en minuscules
+    /**
+     * Convertit le tableau de headers HTTP (format `[{name, value}]`) en objet clé/valeur.
+     * Les clés sont normalisées en minuscules pour des comparaisons insensibles à la casse.
+     * @param {Array<{name: string, value: string}>} [headers=[]] - Les headers de la réponse HTTP
+     * @returns {Object.<string, string>} Un objet `{ 'content-type': 'text/html', ... }`
+     */
     const normalizeHeaders = (headers = []) => {
         const out = {};
         headers.forEach((header) => {
@@ -15,7 +29,13 @@
         return out;
     };
 
-    // Détecte le CDN utilisé à partir des headers de réponse
+    /**
+     * Détecte le CDN utilisé à partir des headers de réponse HTTP.
+     * Vérifie les headers spécifiques à Cloudflare, Fastly, CloudFront et Akamai.
+     * Retourne le contenu du header `server` en dernier recours.
+     * @param {Object.<string, string>} headers - Les headers normalisés en minuscules
+     * @returns {string} Le nom du CDN détecté, ou la valeur du header `server`, ou une chaîne vide
+     */
     const detectCdn = (headers) => {
         if (headers['cf-ray'] || headers['cf-cache-status']) return 'Cloudflare';
         if (headers['x-served-by'] || headers['x-cache-hits']) return 'Fastly';
@@ -25,7 +45,12 @@
         return headers.server ? String(headers.server) : '';
     };
 
-    // Supprime les entrées les plus anciennes si on dépasse MAX_URL_ENTRIES
+    /**
+     * Supprime les entrées URL les plus anciennes si le store dépasse `MAX_URL_ENTRIES`.
+     * Les clés de type `tab:xxx` ne sont pas comptées dans la limite et ne sont jamais supprimées ici.
+     * @param {Object} store - L'objet complet du storage réseau
+     * @returns {Object} Le store modifié (mutation en place)
+     */
     const pruneIfNeeded = (store) => {
         const urlKeys = Object.keys(store).filter((k) => !k.startsWith('tab:'));
         if (urlKeys.length <= MAX_URL_ENTRIES) return store;
@@ -35,7 +60,14 @@
         return store;
     };
 
-    // Enregistre les infos réseau d'une requête main_frame dans le storage
+    /**
+     * Intercepte une réponse HTTP et enregistre ses informations réseau dans le storage.
+     * Ignore les requêtes qui ne sont pas de type `main_frame` (iframes, scripts, images, etc.)
+     * ainsi que celles qui ne proviennent pas du frame principal (`frameId !== 0`).
+     * Indexe les données par URL et par `tab:tabId` pour permettre deux stratégies de lookup.
+     * @param {Object} details - L'objet de détails fourni par `chrome.webRequest.onResponseStarted`
+     * @returns {Promise<void>}
+     */
     async function update(details) {
         if (details.type && details.type !== 'main_frame') return;
         if (details.frameId !== 0) return;
@@ -65,8 +97,17 @@
         });
     }
 
-    // Récupère les infos réseau pour une URL ou un tabId donné
-    // Essaie plusieurs stratégies : URL exacte → tabId → URL normalisée → même hôte
+    /**
+     * Récupère les informations réseau pour une URL ou un tabId donné.
+     * Applique quatre stratégies de fallback dans l'ordre :
+     * 1. Correspondance exacte par URL
+     * 2. Correspondance par `tab:tabId`
+     * 3. Correspondance par URL normalisée (sans slash final, en minuscules)
+     * 4. Correspondance par hostname (entrée la plus récente)
+     * @param {string} url - L'URL de la page dont on veut les infos réseau
+     * @param {number} [tabId] - L'identifiant de l'onglet Chrome (optionnel)
+     * @returns {Promise<{ url: string, ip: string, cdn: string, server: string, cache: string }>}
+     */
     async function get(url, tabId) {
         return new Promise((resolve) => {
             chrome.storage.local.get([STORAGE_KEY], (result) => {

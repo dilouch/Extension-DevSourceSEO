@@ -201,7 +201,7 @@ const ColorsManager = {
             const res = document.getElementById(id + '-res');
             el.innerText = ratio.toFixed(2);
             
-            let badges = '';
+            let badges;
             if(ratio >= 7) badges = '<span class="ds-badge ds-pass">AAA</span>';
             else if(ratio >= 4.5) badges = '<span class="ds-badge ds-pass">AA</span>';
             else if(ratio >= 3) badges = '<span class="ds-badge ds-pass">AA Large</span>';

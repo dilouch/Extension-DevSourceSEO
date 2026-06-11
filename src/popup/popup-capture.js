@@ -1,10 +1,24 @@
-// Module de l'onglet Capture : screenshot PNG et export PDF de la page active.
+/**
+ * @fileoverview Module de l'onglet Capture.
+ * Prend un screenshot pleine page en assemblant plusieurs captures viewport par viewport,
+ * puis exporte le résultat en PNG ou en PDF généré manuellement (sans librairie externe).
+ * Exposé sur `globalThis.PopupCaptureV2`.
+ * @module popup-capture
+ */
+
 (() => {
     let ctx = null;
 
     const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    /** @const {number} Délai minimum en ms entre deux appels à `captureVisible` pour éviter le quota Chrome */
     const CAPTURE_THROTTLE_MS = 600;
 
+    /**
+     * Appelle `ctx.captureVisible()` avec jusqu'à 3 tentatives en cas d'erreur de quota Chrome.
+     * @returns {Promise<string>} Le data URL PNG de la capture visible
+     * @throws {Error} Si le quota est atteint après 3 tentatives
+     */
     const captureVisibleSafe = async () => {
         for (let attempt = 0; attempt < 3; attempt++) {
             try {
@@ -21,6 +35,13 @@
         throw new Error('Quota de capture Chrome atteint.');
     };
 
+    /**
+     * Convertit un data URL PNG en fichier PDF valide (PDF 1.4) sans librairie externe.
+     * L'image est convertie en JPEG pour réduire la taille, puis encapsulée dans la structure PDF binaire.
+     * @param {string} pngDataUrl - Le data URL PNG source
+     * @param {number} [jpegQuality=0.9] - La qualité JPEG de 0 à 1
+     * @returns {Promise<Blob>} Un Blob de type `application/pdf`
+     */
     const pngDataUrlToPdfBlob = async (pngDataUrl, jpegQuality = 0.9) => {
         const img = await ctx.loadImage(pngDataUrl);
         const canvas = document.createElement('canvas');
@@ -67,6 +88,13 @@
         return new Blob([out], { type: 'application/pdf' });
     };
 
+    /**
+     * Capture la page complète en faisant défiler et en assemblant les captures viewport par viewport.
+     * Prépare la page avant la capture (désactive smooth-scroll, masque les éléments fixed)
+     * et restaure l'état original à la fin, même en cas d'erreur.
+     * @param {number} tabId - L'identifiant de l'onglet à capturer
+     * @returns {Promise<string>} Le data URL PNG de la page complète assemblée
+     */
     const captureFullPage = async (tabId) => {
         await ctx.sendMessage(tabId, { type: 'PREPARE_FULLPAGE_CAPTURE' });
         await wait(300);
@@ -117,6 +145,10 @@
         }
     };
 
+    /**
+     * Lance la capture pleine page et déclenche le téléchargement selon le mode choisi.
+     * @param {'png'|'pdf'} mode - Le format d'export souhaité
+     */
     const run = async (mode) => {
         const tabId = ctx.getActiveTabId();
         if (!tabId) { ctx.setStatus('Onglet actif introuvable.'); return; }

@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>content/sidebar.js - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    <input type="text" id="nav-search" placeholder="Search" />
+    
+    
+    <h2><a href="index.html">Home</a></h2><h2><a href="#" target="_blank" class="menu-item" id="website_link" >Github</a></h2><h3>Modules</h3><ul><li><a href="module-collector.html">collector</a></li><li><a href="module-network-info.html">network-info</a></li><li><a href="module-popup.html">popup</a></li><li><a href="module-popup-capture.html">popup-capture</a></li><li><a href="module-popup-overview.html">popup-overview</a></li><li><a href="module-popup-saves.html">popup-saves</a></li><li><a href="module-redirect-history.html">redirect-history</a></li><li><a href="module-serp.html">serp</a></li><li><a href="module-sidebar.html">sidebar</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">content/sidebar.js</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * @fileoverview Panneau latéral injectable dans n'importe quelle page web.
+ * Crée un `&lt;iframe>` contenant `popup.html?mode=sidebar` et le positionne à droite ou à gauche.
+ * L'ouverture/fermeture est déclenchée par le message `TOGGLE_SIDEBAR` envoyé depuis `popup.js`.
+ * @module sidebar
+ */
+
+(() => {
+    if (window.__dsSidebarLoaded) return;
+    window.__dsSidebarLoaded = true;
+
+    /** @const {string} Clé de storage pour le côté préféré (left/right) */
+    const STORAGE_KEY_SIDE  = 'v2.sidebar.side';
+
+    /** @const {string} Clé de storage pour la largeur du panneau en pixels */
+    const STORAGE_KEY_WIDTH = 'v2.sidebar.width';
+
+    /** @const {number} Largeur minimale du panneau en pixels */
+    const MIN_WIDTH = 280;
+
+    /** @const {number} Largeur maximale du panneau (80% de la fenêtre) */
+    const MAX_WIDTH = Math.round(window.innerWidth * 0.8);
+
+    const sidebar = document.createElement('div');
+    sidebar.id = 'ds-sidebar';
+    sidebar.innerHTML = `
+        &lt;div id="ds-sidebar-resizer">&lt;/div>
+        &lt;div id="ds-sidebar-toolbar">
+            &lt;span id="ds-sidebar-title">⚡ Devsource SEO&lt;/span>
+            &lt;div id="ds-sidebar-toolbar-actions">
+                &lt;button id="ds-sidebar-flip" title="Changer de côté">⇄&lt;/button>
+                &lt;button id="ds-sidebar-close" title="Fermer">✕&lt;/button>
+            &lt;/div>
+        &lt;/div>
+        &lt;iframe src="${chrome.runtime.getURL('src/popup/popup.html')}?mode=sidebar">&lt;/iframe>
+    `;
+
+    document.body.appendChild(sidebar);
+
+    let isOpen      = false;
+    let currentSide = 'right';
+
+    /**
+     * Applique le `transform: translateX()` selon l'état ouvert/fermé et le côté actuel.
+     * Le panneau sort de l'écran à 110% pour ne pas être visible quand fermé.
+     */
+    const applyTransform = () => {
+        sidebar.style.transform = isOpen
+            ? 'translateX(0)'
+            : currentSide === 'right' ? 'translateX(110%)' : 'translateX(-110%)';
+    };
+
+    /**
+     * Déplace le panneau à gauche ou à droite et sauvegarde le choix dans le storage.
+     * Met à jour le positionnement CSS, l'ombre et la classe `side-left`.
+     * @param {'left'|'right'} side - Le côté sur lequel afficher le panneau
+     */
+    const setSide = (side) => {
+        currentSide = side;
+        sidebar.style.right = side === 'right' ? '0' : 'auto';
+        sidebar.style.left  = side === 'left'  ? '0' : 'auto';
+        sidebar.classList.toggle('side-left', side === 'left');
+        sidebar.style.boxShadow = side === 'right'
+            ? '-4px 0 24px rgba(0,0,0,0.3)'
+            : '4px 0 24px rgba(0,0,0,0.3)';
+        applyTransform();
+        chrome.storage.local.set({ [STORAGE_KEY_SIDE]: side });
+    };
+
+    /**
+     * Bascule l'état ouvert/fermé du panneau latéral.
+     * Appelé via le message `TOGGLE_SIDEBAR` ou le bouton fermer.
+     */
+    const toggle = () => {
+        isOpen = !isOpen;
+        sidebar.classList.toggle('is-open', isOpen);
+        applyTransform();
+    };
+
+    sidebar.querySelector('#ds-sidebar-close').addEventListener('click', () => {
+        isOpen = false;
+        sidebar.classList.remove('is-open');
+        applyTransform();
+    });
+
+    sidebar.querySelector('#ds-sidebar-flip').addEventListener('click', () => {
+        setSide(currentSide === 'right' ? 'left' : 'right');
+    });
+
+    /**
+     * Poignée de redimensionnement par drag (mousedown → mousemove → mouseup).
+     * Désactive les `pointer-events` de l'iframe pendant le drag pour éviter
+     * que l'iframe capte les événements souris et bloque le redimensionnement.
+     * Sauvegarde la largeur finale dans le storage au relâchement.
+     */
+    const resizer = sidebar.querySelector('#ds-sidebar-resizer');
+    const iframe  = sidebar.querySelector('iframe');
+
+    resizer.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        resizer.classList.add('is-resizing');
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = 'ew-resize';
+
+        // Désactiver l'iframe pendant le drag pour éviter qu'il capte les événements souris
+        if (iframe) iframe.style.pointerEvents = 'none';
+        sidebar.style.transition = 'none';
+
+        const onMouseMove = (e) => {
+            const newWidth = currentSide === 'right'
+                ? window.innerWidth - e.clientX
+                : e.clientX;
+            sidebar.style.width = `${Math.min(Math.max(newWidth, MIN_WIDTH), MAX_WIDTH)}px`;
+        };
+
+        const onMouseUp = () => {
+            resizer.classList.remove('is-resizing');
+            document.body.style.userSelect = '';
+            document.body.style.cursor = '';
+            if (iframe) iframe.style.pointerEvents = '';
+            sidebar.style.transition = 'transform 0.25s ease';
+            chrome.storage.local.set({ [STORAGE_KEY_WIDTH]: sidebar.offsetWidth });
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    });
+
+    // Charge la largeur et le côté sauvegardés
+    chrome.storage.local.get([STORAGE_KEY_SIDE, STORAGE_KEY_WIDTH], (result) => {
+        if (result[STORAGE_KEY_WIDTH]) {
+            const saved = Number(result[STORAGE_KEY_WIDTH]);
+            if (saved >= MIN_WIDTH &amp;&amp; saved &lt;= window.innerWidth) {
+                sidebar.style.width = `${saved}px`;
+            }
+        }
+        setSide(result[STORAGE_KEY_SIDE] || 'right');
+    });
+
+    // Écoute le message depuis le popup pour ouvrir/fermer
+    chrome.runtime.onMessage.addListener((message) => {
+        if (message?.type === 'TOGGLE_SIDEBAR') toggle();
+    });
+})();
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Thu Jun 11 2026 13:57:17 GMT+0200 (Central European Summer Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+<script src="scripts/search.js" defer></script>
+
+
+
+</body>
+</html>

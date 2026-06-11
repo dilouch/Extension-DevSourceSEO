@@ -1,12 +1,21 @@
-// Point d'entrée principal du popup.
-// Orchestre la collecte de données, le rendu des onglets et l'initialisation des modules.
+/**
+ * @fileoverview Point d'entrée principal du popup de l'extension.
+ * Orchestre la collecte de données, le rendu des onglets et l'initialisation de tous les modules.
+ * Gère également le mode sidebar (chargement dans un iframe via `?mode=sidebar`).
+ * @module popup
+ */
+
 (() => {
-    // Détecte si le popup est chargé dans la sidebar (iframe avec ?mode=sidebar)
+    /** @type {boolean} */
     const isSidebarMode = new URLSearchParams(location.search).get('mode') === 'sidebar';
     if (isSidebarMode) {
         document.body.classList.add('sidebar-mode');
 
-        // Crée le dropdown de navigation qui remplace la nav verticale
+        /**
+         * Crée un `<select>` de navigation qui remplace la barre horizontale d'onglets
+         * lorsque le popup est affiché dans la sidebar (espace trop étroit pour la nav horizontale).
+         * Synchronise la valeur du select quand un onglet change via le JS.
+         */
         const initSidebarDropdown = () => {
             // Récupère tous les onglets visibles (non cachés)
             const tabs = Array.from(document.querySelectorAll('.menu-tab[data-tab]'))
@@ -104,7 +113,10 @@
     const copyText = async (text) => { if (text) await globalThis.UtilsV2.copyText(text); };
     const switchToTab = (tabId) => document.querySelector(`.menu-tab[data-tab="${tabId}"]`)?.click();
 
-    // Nofollow
+    /**
+     * Lit les paramètres nofollow depuis le storage.
+     * @returns {Promise<{ settings: Object, globalEnabled: boolean, exclusions: string[], excluded: boolean }>}
+     */
     const getNofollowSettings = () => new Promise((resolve) => {
         try {
             chrome.storage.local.get([NOFOLLOW_STORAGE_KEY], (result) => {
@@ -116,6 +128,10 @@
         } catch (_) { resolve({ settings: {}, globalEnabled: true, exclusions: [], excluded: false }); }
     });
 
+    /**
+     * Met à jour le bouton nofollow dans la topbar selon l'état global et l'exclusion du site courant.
+     * Masque le bouton si aucun hostname n'est disponible.
+     */
     const updateNofollowTopbarButton = async () => {
         const btn = document.getElementById('btn-nofollow-topbar');
         if (!btn) return;
@@ -128,6 +144,10 @@
         techToolsState.nofollowActive = globalEnabled && !excluded;
     };
 
+    /**
+     * Active ou désactive le surlignage nofollow pour le site actuellement affiché.
+     * Ajoute ou retire le hostname de la liste d'exclusions dans le storage.
+     */
     const toggleCurrentSiteNofollow = async () => {
         if (!currentHostname) return;
         const { settings: s, globalEnabled, exclusions, excluded } = await getNofollowSettings();
@@ -141,6 +161,10 @@
         } catch (_) {}
     };
 
+    /**
+     * Met à jour l'état interne du nofollow et synchronise l'interface (toggle + bouton topbar).
+     * @param {boolean} enabled - `true` pour activer le surlignage nofollow
+     */
     const setNofollowState = (enabled) => {
         techToolsState.nofollowActive = enabled;
         const adv = document.getElementById('adv-toggle-nofollow');
@@ -151,7 +175,11 @@
         }
     };
 
-    // Helpers Chrome API (tabs, scripting, storage, capture)
+    /**
+     * Wrapper promesse autour de `chrome.tabs.query`.
+     * @param {Object} queryInfo - Les critères de recherche (ex: `{ active: true, currentWindow: true }`)
+     * @returns {Promise<chrome.tabs.Tab[]>}
+     */
     const chromeQueryTabs = (queryInfo) => new Promise((resolve, reject) => {
         chrome.tabs.query(queryInfo, (tabs) => {
             if (chrome.runtime.lastError) { reject(new Error(chrome.runtime.lastError.message)); return; }
@@ -159,6 +187,11 @@
         });
     });
 
+    /**
+     * Injecte les content scripts (`collector.js`, `highlight-nofollow.js`) dans l'onglet si ce n'est pas déjà fait.
+     * @param {number} tabId - L'identifiant de l'onglet cible
+     * @returns {Promise<void>}
+     */
     const ensureContentScriptsInjected = (tabId) => new Promise((resolve, reject) => {
         if (!chrome.scripting?.executeScript) { reject(new Error('API scripting indisponible.')); return; }
         chrome.scripting.executeScript({ target: { tabId }, files: CONTENT_SCRIPT_FILES }, () => {
@@ -167,6 +200,14 @@
         });
     });
 
+    /**
+     * Envoie un message au content script d'un onglet avec retry automatique.
+     * Si le content script n'est pas encore injecté ("Receiving end does not exist"),
+     * il est injecté automatiquement puis le message est renvoyé.
+     * @param {number} tabId - L'identifiant de l'onglet cible
+     * @param {Object} message - Le message à envoyer (ex: `{ type: 'COLLECT_DATA' }`)
+     * @returns {Promise<Object>} La réponse du content script
+     */
     const chromeSendMessage = async (tabId, message) => {
         const attempt = () => new Promise((resolve, reject) => {
             chrome.tabs.sendMessage(tabId, message, (response) => {
@@ -181,6 +222,13 @@
         }
     };
 
+    /**
+     * Exécute une fonction JavaScript directement dans le contexte d'un onglet via `chrome.scripting`.
+     * @param {number} tabId - L'identifiant de l'onglet cible
+     * @param {Function} func - La fonction à exécuter dans la page (sérialisée par Chrome)
+     * @param {Array} [args=[]] - Les arguments à passer à la fonction
+     * @returns {Promise<*>} Le résultat retourné par la fonction
+     */
     const executeScriptInTab = (tabId, func, args = []) => new Promise((resolve, reject) => {
         if (!chrome.scripting?.executeScript) { reject(new Error('API scripting indisponible')); return; }
         chrome.scripting.executeScript({ target: { tabId }, func, args }, (results) => {
@@ -224,7 +272,11 @@
         if (themeToggleLabelEl) themeToggleLabelEl.textContent = next === 'dark' ? 'Mode sombre' : 'Mode clair';
     };
 
-    // Collecte les données SEO de l'onglet actif via le content script
+    /**
+     * Collecte les données SEO de l'onglet actif en envoyant un message `COLLECT_DATA` au content script.
+     * Met à jour `activeTabId`, `currentHostname` et l'URL affichée dans la topbar.
+     * @returns {Promise<Object|null>} Les données de la page, ou `null` si la page n'est pas analysable
+     */
     const collectTabData = async () => {
         const tabs = await chromeQueryTabs({ active: true, currentWindow: true });
         const tab = tabs[0];
@@ -239,9 +291,16 @@
         return globalThis.PageDataV2?.createPageData ? globalThis.PageDataV2.createPageData(response.data) : response.data;
     };
 
-    // Fonctions de rendu des différents onglets
+    /**
+     * Délègue le rendu de l'onglet Aperçu au module `PopupOverviewV2`.
+     * @param {Object} data - Les données SEO collectées
+     */
     const renderOverview = (data) => globalThis.PopupOverviewV2?.render(overviewEl, data);
 
+    /**
+     * Lance le rendu de tous les onglets en appelant chaque module dans l'ordre.
+     * @param {Object} data - Les données SEO collectées
+     */
     const renderModules = (data) => {
         renderAuditPanel(data);
         renderSpeed(data);
@@ -261,6 +320,11 @@
         globalThis.FaviconModuleV2?.render(faviconEl, data);
     };
 
+    /**
+     * Affiche le panneau d'audit. Si un audit a déjà été lancé, affiche son résultat.
+     * Sinon, affiche le bouton "Lancer l'analyse" pour inviter l'utilisateur à démarrer.
+     * @param {Object} data - Les données SEO collectées (non utilisées directement, sert de garde)
+     */
     const renderAuditPanel = (data) => {
         if (!auditEl) return;
         if (lastAuditResult) { globalThis.AuditRendererV2?.render(auditEl, lastAuditResult); return; }
@@ -276,6 +340,10 @@
             <div class="audit-empty-state">Aucun audit lancé pour l'instant.</div>`;
     };
 
+    /**
+     * Lance l'analyse d'audit SEO sur les données actuellement chargées.
+     * Calcule le score via `AuditControllerV2`, affiche le rapport et met à jour l'aperçu.
+     */
     const runAuditAnalysis = () => {
         if (!lastData) { setStatus('Aucune page à auditer.'); return; }
         lastAuditResult = globalThis.AuditControllerV2?.analyze ? globalThis.AuditControllerV2.analyze(lastData) : null;
@@ -317,6 +385,9 @@
             </div>`;
     };
 
+    /**
+     * Re-collecte les données de performance de la page active et met à jour l'onglet Vitesse.
+     */
     const measureSpeedNow = async () => {
         try {
             setStatus('Mesure vitesse en cours...');
@@ -330,6 +401,10 @@
 
     const renderWords = (data) => { if (wordsEl) globalThis.WordsModuleV2?.render(wordsEl, data, { setStatus }); };
 
+    /**
+     * Affiche les opportunités SEO issues du dernier audit dans l'onglet Opportunités.
+     * Si aucun audit n'a été lancé, affiche un message d'invitation.
+     */
     const renderOpportunities = () => {
         if (!opportunitiesEl) return;
         if (!lastAuditResult) {
@@ -342,6 +417,11 @@
             : '<div class="opp-item opp-success"><span class="opp-score">:)</span><span class="opp-msg">Aucune opportunité critique détectée. Bon travail !</span></div>';
     };
 
+    /**
+     * Récupère les infos réseau (IP, CDN) et l'historique des redirections via le service worker,
+     * puis délègue le rendu au module `RedirectsModuleV2`.
+     * Met également à jour les champs IP/CDN dans l'onglet Aperçu sans re-render complet.
+     */
     const renderNetwork = async () => {
         if (!networkEl || !lastData) return;
         const [networkInfoResponse, redirectHistoryResponse] = await Promise.all([
@@ -358,7 +438,12 @@
         if (cdnEl) cdnEl.textContent = lastNetworkInfo?.cdn || 'N/A';
     };
 
-    // Bulk opener : ouvre plusieurs URLs en même temps
+    /**
+     * Convertit une ligne de texte brute en URL valide.
+     * Accepte une URL complète, un domaine nu ou une requête de recherche.
+     * @param {string} line - La ligne saisie par l'utilisateur
+     * @returns {string} Une URL absolue, ou une chaîne vide si la ligne est vide
+     */
     const parseBulkEntryToUrl = (line) => {
         const v = String(line || '').trim();
         if (!v) return '';
@@ -397,6 +482,10 @@
             updateBulkCount();
         }
     };
+    /**
+     * Ouvre les URLs du bulk opener en lots (batch), avec une pause de 600ms entre chaque lot.
+     * Limite à 50 URLs maximum pour éviter de surcharger le navigateur.
+     */
     const openBulkUrls = async () => {
         const urls = getBulkUrls();
         if (!urls.length) { setStatus('Aucune URL à ouvrir.'); return; }
@@ -419,7 +508,10 @@
         setStatus(`✓ ${opened} onglet(s) ouvert(s).`);
     };
 
-    // Gestion des onglets et du panneau de paramètres
+    /**
+     * Applique la liste des onglets masqués (`settings.hiddenTabs`) en cachant/affichant les boutons de navigation.
+     * Les onglets dans `TABS_NEVER_HIDDEN` (Aperçu, Paramètres) ne peuvent jamais être masqués.
+     */
     const applyHiddenTabs = () => {
         const hidden = Array.isArray(settings.hiddenTabs) ? settings.hiddenTabs : [];
         Array.from(document.querySelectorAll('.menu-tab[data-tab]')).forEach((btn) => {
@@ -428,6 +520,10 @@
         });
     };
 
+    /**
+     * Attache les événements de navigation aux boutons d'onglets.
+     * Sauvegarde l'onglet actif dans les settings et restaure le dernier onglet ouvert au démarrage.
+     */
     const bindTabs = () => {
         const tabs = Array.from(document.querySelectorAll('.menu-tab'));
         const panels = Array.from(document.querySelectorAll('.tab-panel'));
@@ -444,6 +540,10 @@
         activateTab(exists ? settings.activeTab : DEFAULT_SETTINGS.activeTab);
     };
 
+    /**
+     * Initialise le panneau Paramètres avec la liste des onglets masquables (checkboxes).
+     * Gère les boutons "Tout afficher" et "Tout masquer".
+     */
     const bindSettingsTab = () => {
         const container = document.getElementById('settings-tabs-list');
         if (!container) return;
@@ -485,7 +585,11 @@
         });
     };
 
-    // Initialise tous les modules avec un contexte partagé
+    /**
+     * Initialise tous les modules du popup en leur passant un objet de contexte partagé (`sharedCtx`).
+     * Le contexte expose les fonctions utilitaires et les getters d'état interne
+     * pour que les modules restent découplés du fichier principal.
+     */
     const initModules = () => {
         const sharedCtx = {
             setStatus,
@@ -524,7 +628,9 @@
         globalThis.PopupShortcutsV2?.init(sharedCtx);
     };
 
-    // Binding de tous les boutons et actions de l'interface
+    /**
+     * Attache tous les événements aux boutons de l'interface (refresh, audit, export, bulk, thème, sidebar, etc.).
+     */
     const bindActions = () => {
         document.getElementById('btn-save-analysis')?.addEventListener('click', () => globalThis.PopupSavesV2?.save());
         document.getElementById('btn-refresh')?.addEventListener('click', loadCurrentPage);
@@ -573,7 +679,10 @@
 });
     };
 
-    // Charge et affiche les données de la page active
+    /**
+     * Collecte les données de la page active et lance le rendu complet de tous les onglets.
+     * Réinitialise le résultat d'audit précédent à chaque rechargement.
+     */
     const loadCurrentPage = async () => {
         try {
             const data = await collectTabData();
@@ -589,7 +698,10 @@
         }
     };
 
-    // Point d'entrée principal
+    /**
+     * Point d'entrée principal du popup.
+     * Charge les settings, initialise les modules, attache les événements et lance l'analyse de la page active.
+     */
     const init = async () => {
         if (!globalThis.chrome?.tabs || !globalThis.chrome?.storage) {
             setStatus('Environnement extension non supporté.');

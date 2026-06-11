@@ -7,7 +7,7 @@
     const fetchTechnicalInfo = async (pageUrl) => {
         const fallback = { robotsExists: false, sitemapInRobots: false, robotsText: '' };
         if (!pageUrl) return fallback;
-        let origin = '';
+        let origin;
         try { origin = new URL(pageUrl).origin; } catch (_) { return fallback; }
         try {
             const response = await fetch(`${origin}/robots.txt`, { cache: 'no-store' });

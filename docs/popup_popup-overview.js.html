@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>popup/popup-overview.js - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    <input type="text" id="nav-search" placeholder="Search" />
+    
+    
+    <h2><a href="index.html">Home</a></h2><h2><a href="#" target="_blank" class="menu-item" id="website_link" >Github</a></h2><h3>Modules</h3><ul><li><a href="module-collector.html">collector</a></li><li><a href="module-network-info.html">network-info</a></li><li><a href="module-popup.html">popup</a></li><li><a href="module-popup-capture.html">popup-capture</a></li><li><a href="module-popup-overview.html">popup-overview</a></li><li><a href="module-popup-saves.html">popup-saves</a></li><li><a href="module-redirect-history.html">redirect-history</a></li><li><a href="module-serp.html">serp</a></li><li><a href="module-sidebar.html">sidebar</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">popup/popup-overview.js</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * @fileoverview Module de l'onglet Aperçu.
+ * Affiche le résumé visuel de la page : titre, description, aperçu Google, score SEO,
+ * statistiques, structure des titres Hn, IP/CDN et mots-clés principaux.
+ * Exposé sur `globalThis.PopupOverviewV2`.
+ * @module popup-overview
+ */
+
+(() => {
+    let ctx = null;
+
+    const esc = (v) => globalThis.UtilsV2?.escapeHtml ? globalThis.UtilsV2.escapeHtml(v) : String(v ?? '');
+
+    let storageListenerBound = false;
+
+    /**
+     * Génère le HTML complet de l'onglet Aperçu et attache les événements (copie, nofollow).
+     * @param {HTMLElement} container - L'élément DOM où injecter le rendu
+     * @param {Object} data - Les données SEO collectées par `collector.js`
+     */
+    const render = (container, data) => {
+        if (!container || !data) return;
+
+        const lastAuditResult = ctx.getLastAuditResult();
+        const lastNetworkInfo = ctx.getLastNetworkInfo();
+
+        const titleLength = String(data.title || '').length;
+        const descLength = String(data.metaDescription || '').length;
+        const auditScore = lastAuditResult?.score ?? null;
+        const scoreValue = auditScore === null ? '...' : String(auditScore);
+        const scoreGrade = auditScore === null ? 'F'
+            : auditScore >= 90 ? 'A' : auditScore >= 75 ? 'B'
+            : auditScore >= 60 ? 'C' : auditScore >= 45 ? 'D' : 'F';
+        const scoreClass = auditScore === null ? 'score-f'
+            : auditScore >= 90 ? 'score-a' : auditScore >= 75 ? 'score-b'
+            : auditScore >= 60 ? 'score-c' : auditScore >= 45 ? 'score-d' : 'score-f';
+        const netIp = esc(lastNetworkInfo?.ip || 'Detection...');
+        const netCdn = esc(lastNetworkInfo?.cdn || 'Detection...');
+        const keywordList = Array.isArray(data.words) &amp;&amp; data.words.length
+            ? data.words.slice(0, 6).map((item) => `&lt;span class="meta-badge clickable">${esc(item.word)} &lt;strong>${Number(item.count || 0)}&lt;/strong>&lt;/span>`).join('')
+            : '&lt;span class="meta-badge">Aucun mot-clé&lt;/span>';
+
+        container.innerHTML = `
+            &lt;div id="nofollow-active-notification" class="nofollow-banner" style="display:none;">
+                &lt;div class="nofollow-banner-inner">
+                    &lt;span class="nofollow-banner-text">⚡ Surlignage Nofollow Actif&lt;/span>
+                    &lt;button id="btn-toggle-nofollow-quick" class="nofollow-banner-btn">Désactiver (ici)&lt;/button>
+                &lt;/div>
+            &lt;/div>
+
+            &lt;div class="card" style="background:#12272b; color:white; border:none; padding:10px; margin-bottom: 15px;">
+                &lt;div style="display:flex; justify-content:space-between; align-items:center; gap: 12px;">
+                    &lt;span style="font-size:12px;">🌐 IP Serveur: &lt;strong id="net-ip" style="color:#abd8d8">${netIp}&lt;/strong>&lt;/span>
+                    &lt;span style="font-size:12px;">☁️ CDN: &lt;strong id="net-cdn" style="color:#f1fd0d">${netCdn}&lt;/strong>&lt;/span>
+                &lt;/div>
+            &lt;/div>
+
+            &lt;div class="overview-grid">
+                &lt;div class="overview-main">
+                    &lt;div class="card">
+                        &lt;div class="card-header">
+                            &lt;span class="label">Titre&lt;/span>
+                            &lt;span id="title-tag" class="tag tag-warning">${titleLength} car.&lt;/span>
+                            &lt;button id="copy-title-btn" class="btn btn-icon" data-copy-value="${esc(data.title || '')}" title="Copier le titre">📋&lt;/button>
+                        &lt;/div>
+                        &lt;p id="overview-title" class="data-text">${esc(data.title || '-')}&lt;/p>
+                    &lt;/div>
+
+                    &lt;div class="card">
+                        &lt;div class="card-header">
+                            &lt;span class="label">Description&lt;/span>
+                            &lt;span id="description-tag" class="tag tag-danger">${descLength} car.&lt;/span>
+                            &lt;button id="copy-desc-btn" class="btn btn-icon" data-copy-value="${esc(data.metaDescription || '')}" title="Copier la description">📋&lt;/button>
+                        &lt;/div>
+                        &lt;p id="overview-description" class="data-text">${esc(data.metaDescription || '-')}&lt;/p>
+                    &lt;/div>
+
+                    &lt;div class="card">
+                        &lt;div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                            &lt;h3 style="margin:0; border:none;">Aperçu Google&lt;/h3>
+                        &lt;/div>
+                        &lt;div class="snippet-preview">
+                            &lt;span id="snippet-title" class="snippet-title-text">${esc(data.title || '-')}&lt;/span>
+                            &lt;span id="snippet-url" class="snippet-url-text">${esc(data.url || '-')}&lt;/span>
+                            &lt;p id="snippet-desc" class="snippet-desc-text">${esc(data.metaDescription || '-')}&lt;/p>
+                        &lt;/div>
+                    &lt;/div>
+
+                    &lt;div class="card">
+                        &lt;div class="card-header">&lt;span class="label">Robots&lt;/span>&lt;span id="robots-tag" class="tag tag-ok">${esc(String(data.robots || '').trim() || '...')}&lt;/span>&lt;/div>
+                        &lt;p id="overview-robots" class="data-text data-code">${esc(data.robots || 'Chargement...')}&lt;/p>
+                    &lt;/div>
+
+                    &lt;div class="card">
+                        &lt;div class="card-header">
+                            &lt;span class="label">URL Canonique&lt;/span>
+                            &lt;span id="canonical-tag" class="tag">${data.canonical ? 'OK' : 'Manquant'}&lt;/span>
+                            &lt;button id="copy-canonical-btn" class="btn btn-icon" data-copy-value="${esc(data.canonical || '')}" title="Copier l'URL canonique">📋&lt;/button>
+                        &lt;/div>
+                        &lt;p id="overview-canonical" class="data-text data-code">${esc(data.canonical || '-')}&lt;/p>
+                    &lt;/div>
+
+                    &lt;div class="card">
+                        &lt;div class="card-header">&lt;span class="label">Hreflang&lt;/span>&lt;span id="hreflang-tag" class="tag">${Array.isArray(data.hreflang) ? data.hreflang.length : 0}&lt;/span>&lt;/div>
+                        &lt;div id="overview-hreflang" class="data-list">
+                            ${Array.isArray(data.hreflang) &amp;&amp; data.hreflang.length
+                                ? data.hreflang.map((item) => `&lt;p>&lt;span class="data-key">${esc(item.lang || '-')}&lt;/span> &lt;span class="data-value">${esc(item.href || '-')}&lt;/span>&lt;/p>`).join('')
+                                : '&lt;p>Chargement...&lt;/p>'}
+                        &lt;/div>
+                    &lt;/div>
+
+                    &lt;div class="card">
+                        &lt;h3>Balises &amp; Structure&lt;/h3>
+                        &lt;div class="meta-badges">
+                            &lt;span id="badge-og" class="meta-badge clickable">Open Graph&lt;/span>
+                            &lt;span id="badge-twitter" class="meta-badge clickable">Twitter Card&lt;/span>
+                            &lt;span id="badge-viewport" class="meta-badge clickable">Viewport&lt;/span>
+                            &lt;span id="badge-schema" class="meta-badge clickable">Données Struct.&lt;/span>
+                        &lt;/div>
+                        &lt;div class="meta-extras">
+                            &lt;div class="meta-extra-item">&lt;span class="label">Keywords:&lt;/span>&lt;span id="overview-keywords" class="value">${keywordList}&lt;/span>&lt;/div>
+                            &lt;div class="meta-extra-item">&lt;span class="label">Publisher:&lt;/span>&lt;span id="overview-publisher" class="value">${esc(data.publisher || '...')}&lt;/span>&lt;/div>
+                        &lt;/div>
+                    &lt;/div>
+
+                    &lt;div id="hn-overview-card" class="card card-clickable">
+                        &lt;h3>Structure des Titres (Aperçu)&lt;/h3>
+                        &lt;div class="headings-structure-summary">
+                            &lt;span id="hn-overview-h1" class="hn-tag hn-h1">H1: &lt;strong>${data.headings?.counts?.H1 ?? 0}&lt;/strong>&lt;/span>
+                            &lt;span id="hn-overview-h2" class="hn-tag hn-h2">H2: &lt;strong>${data.headings?.counts?.H2 ?? 0}&lt;/strong>&lt;/span>
+                            &lt;span id="hn-overview-h3" class="hn-tag hn-h3">H3: &lt;strong>${data.headings?.counts?.H3 ?? 0}&lt;/strong>&lt;/span>
+                            &lt;span id="hn-overview-h4" class="hn-tag hn-h4">H4: &lt;strong>${data.headings?.counts?.H4 ?? 0}&lt;/strong>&lt;/span>
+                            &lt;span id="hn-overview-h5" class="hn-tag hn-h5">H5: &lt;strong>${data.headings?.counts?.H5 ?? 0}&lt;/strong>&lt;/span>
+                            &lt;span id="hn-overview-h6" class="hn-tag hn-h6">H6: &lt;strong>${data.headings?.counts?.H6 ?? 0}&lt;/strong>&lt;/span>
+                        &lt;/div>
+                        &lt;div id="hn-overview-sample" class="hn-sample">&lt;/div>
+                    &lt;/div>
+                &lt;/div>
+
+                &lt;div class="overview-sidebar">
+                    &lt;div class="card">
+                        &lt;h3>Score SEO&lt;/h3>
+                        &lt;div class="score-container">
+                            &lt;div id="score-circle-container" class="score-circle ${scoreClass}">
+                                &lt;span id="score-number" class="score-number">${scoreValue}&lt;/span>
+                                &lt;span id="score-grade" class="score-grade">${scoreGrade}&lt;/span>
+                            &lt;/div>
+                        &lt;/div>
+                        &lt;p id="score-issues" class="score-issues">${lastAuditResult ? `OK ${lastAuditResult.stats.ok} • Warn ${lastAuditResult.stats.warning} • Err ${lastAuditResult.stats.error}` : 'Lance l\'audit pour calculer le score'}&lt;/p>
+                    &lt;/div>
+
+                    &lt;div class="card">
+                        &lt;h3>Stats Page&lt;/h3>
+                        &lt;div class="stats-grid">
+                            &lt;div class="stat-item clickable" id="stat-words-clickable" title="Voir l'analyse des mots">
+                                &lt;span id="stats-words" class="stat-value" style="color:var(--color-blue);text-decoration:underline;">${Number(data.wordCount || 0)}&lt;/span>
+                                &lt;span class="stat-label">mots (cliquer)&lt;/span>
+                            &lt;/div>
+                            &lt;div class="stat-item clickable" title="Voir les redirections">
+                                &lt;span id="stats-status-code" class="stat-value" style="color:var(--color-blue);text-decoration:underline;">${lastNetworkInfo?.server ? 'Info' : '...'}&lt;/span>
+                                &lt;span class="stat-label">Réseau&lt;/span>
+                            &lt;/div>
+                            &lt;div class="stat-item">
+                                &lt;span id="stats-https" class="stat-value ${String(data.url || '').startsWith('https://') ? 'stat-yes' : 'stat-no'}">${String(data.url || '').startsWith('https://') ? 'Oui' : 'Non'}&lt;/span>
+                                &lt;span class="stat-label">HTTPS&lt;/span>
+                            &lt;/div>
+                            &lt;div class="stat-item">
+                                &lt;span id="stats-lang" class="stat-value">${esc(data.lang || '...')}&lt;/span>
+                                &lt;span class="stat-label">Langue&lt;/span>
+                            &lt;/div>
+                        &lt;/div>
+                    &lt;/div>
+
+                    &lt;div class="card">
+                        &lt;h3>Technologie &amp; Thème&lt;/h3>
+                        &lt;div class="tech-sidebar-list">
+                            &lt;div class="tech-sidebar-item">&lt;span class="label">CMS:&lt;/span>&lt;span id="stats-cms" class="value">${esc(data.technologies?.cms?.items?.[0]?.name || '...')}&lt;/span>&lt;/div>
+                            &lt;div class="tech-sidebar-item">&lt;span class="label">Thème:&lt;/span>&lt;span id="stats-theme" class="value clickable">${esc(data.technologies?.theme?.items?.[0]?.name || '...')}&lt;/span>&lt;/div>
+                        &lt;/div>
+                        &lt;div style="margin-top:10px;border-top:1px dashed #eee;padding-top:5px;">
+                            &lt;span class="label" style="font-size:12px;color:#666;font-weight:bold;display:block;margin-bottom:5px;">Extensions:&lt;/span>
+                            &lt;div id="sidebar-plugins-list" style="font-size:12px;color:#333;line-height:1.4;">
+                                ${(data.technologies?.plugin?.items || []).slice(0, 4).map((item) => esc(item.name)).join('&lt;br>') || '...'}
+                            &lt;/div>
+                        &lt;/div>
+                        &lt;div style="margin-top:15px;border-top:1px dashed #eee;padding-top:10px;">
+                            &lt;h4 style="margin:0 0 10px;font-size:13px;color:var(--color-dark-2);">Top Mots-clés&lt;/h4>
+                            &lt;div id="sidebar-keywords-list" class="meta-badges">${keywordList}&lt;/div>
+                        &lt;/div>
+                    &lt;/div>
+                &lt;/div>
+            &lt;/div>`;
+
+        container.querySelectorAll('[data-copy-value]').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+                const value = btn.getAttribute('data-copy-value') || '';
+                try { await ctx.copyText(value); ctx.setStatus('Texte copié.'); }
+                catch (_) { ctx.setStatus('Impossible de copier.'); }
+            });
+        });
+
+        container.querySelector('#btn-toggle-nofollow-quick')?.addEventListener('click', ctx.toggleCurrentSiteNofollow);
+    };
+
+    /**
+     * Initialise le module avec le contexte partagé du popup.
+     * Enregistre une seule fois le listener `chrome.storage.onChanged` pour mettre à jour
+     * le bouton nofollow sans fuite mémoire.
+     * @param {Object} context - Le contexte partagé fourni par `popup.js`
+     */
+    function init(context) {
+        ctx = context;
+
+        if (!storageListenerBound) {
+            storageListenerBound = true;
+            try {
+                chrome.storage.onChanged.addListener((changes, area) => {
+                    if (area === 'local' &amp;&amp; changes[ctx.NOFOLLOW_STORAGE_KEY]) {
+                        ctx.updateNofollowTopbarButton();
+                    }
+                });
+            } catch (_) {}
+        }
+    }
+
+    globalThis.PopupOverviewV2 = Object.freeze({ init, render });
+})();
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Thu Jun 11 2026 13:57:17 GMT+0200 (Central European Summer Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+<script src="scripts/search.js" defer></script>
+
+
+
+</body>
+</html>
